@@ -33,7 +33,7 @@ from magma.pipelined.openflow import flows
 from magma.pipelined.bridge_util import BridgeTools
 from magma.pipelined.openflow.magma_match import MagmaMatch
 from magma.pipelined.openflow.registers import load_direction, Direction, \
-    PASSTHROUGH_REG_VAL
+    PASSTHROUGH_REG_VAL, TUN_PORT_REG
 
 from ryu.lib import hub
 from ryu.lib.packet import ether_types
@@ -262,13 +262,6 @@ class InOutController(MagmaController):
         next_table = self._service_manager.get_next_table_num(INGRESS)
 
         # set traffic direction bits
-        # set a direction bit for outgoing (pn -> inet) traffic.
-        match = MagmaMatch(in_port=self.config.gtp_port)
-        actions = [load_direction(parser, Direction.OUT)]
-        flows.add_resubmit_next_service_flow(dp, self._ingress_tbl_num, match,
-                                             actions=actions,
-                                             priority=flows.DEFAULT_PRIORITY,
-                                             resubmit_table=next_table)
 
         # set a direction bit for incoming (internet -> UE) traffic.
         match = MagmaMatch(in_port=OFPP_LOCAL)
@@ -301,6 +294,14 @@ class InOutController(MagmaController):
             flows.add_resubmit_next_service_flow(dp, self._ingress_tbl_num,
                                                  match, actions=actions, priority=flows.DEFAULT_PRIORITY,
                                                  resubmit_table=next_table)
+
+        # set a direction bit for outgoing (pn -> inet) traffic for remaining traffic
+        match = MagmaMatch(eth_type=ether_types.ETH_TYPE_IP)
+        actions = [load_direction(parser, Direction.OUT)]
+        flows.add_resubmit_next_service_flow(dp, self._ingress_tbl_num, match,
+                                             actions=actions,
+                                             priority=flows.MINIMUM_PRIORITY,
+                                             resubmit_table=next_table)
 
     def _get_gw_mac_address(self, ip: IPAddress, vlan: str = "") -> str:
         try:
@@ -411,7 +412,7 @@ def _install_vlan_egress_flows(dp, table_no, out_port, ip,
     flows.add_output_flow(dp,
                           table_no, match,
                           [], priority=priority,
-                          output_port=out_port)
+                          output_reg=TUN_PORT_REG)
 
     # remove vlan header for out_port.
     match = MagmaMatch(direction=direction,
@@ -423,4 +424,4 @@ def _install_vlan_egress_flows(dp, table_no, out_port, ip,
                           table_no, match,
                           actions_vlan_pop,
                           priority=priority,
-                          output_port=out_port)
+                          output_reg=TUN_PORT_REG)
