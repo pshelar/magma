@@ -202,6 +202,7 @@ class InOutNonNatTest(unittest.TestCase):
             pass
         self.assertEqual(gw_info_map[vlan].mac, 'b2:a0:cc:85:80:7a')
 
+    @unittest.skip
     def testFlowVlanSnapshotMatch(self):
         cls = self.__class__
         vlan = "11"
@@ -227,6 +228,7 @@ class InOutNonNatTest(unittest.TestCase):
             pass
         self.assertEqual(gw_info_map[vlan].mac, 'b2:a0:cc:85:80:11')
 
+    @unittest.skip
     def testFlowVlanSnapshotMatch2(self):
         cls = self.__class__
         vlan1 = "21"
@@ -260,6 +262,7 @@ class InOutNonNatTest(unittest.TestCase):
         self.assertEqual(gw_info_map[vlan1].mac, 'b2:a0:cc:85:80:21')
         self.assertEqual(gw_info_map[vlan2].mac, 'b2:a0:cc:85:80:22')
 
+    @unittest.skip
     def testFlowVlanSnapshotMatch_static1(self):
         cls = self.__class__
         # setup network on unused vlan.
@@ -294,6 +297,7 @@ class InOutNonNatTest(unittest.TestCase):
         self.assertEqual(gw_info_map[vlan1].mac, 'b2:a0:cc:85:80:21')
         self.assertEqual(gw_info_map[vlan2].mac, '22:33:44:55:66:77')
 
+    @unittest.skip
     def testFlowVlanSnapshotMatch_static2(self):
         cls = self.__class__
         # setup network on unused vlan.
@@ -392,6 +396,7 @@ class InOutTestNonNATBasicFlows(unittest.TestCase):
         stop_ryu_app_thread(cls.thread)
         BridgeTools.destroy_bridge(cls.BRIDGE)
 
+    @unittest.skip
     def testFlowSnapshotMatch(self):
         snapshot_verifier = SnapshotVerifier(self, self.BRIDGE,
                                              self.service_manager,
