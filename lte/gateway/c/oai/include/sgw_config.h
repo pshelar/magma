@@ -101,6 +101,7 @@ typedef struct sgw_config_s {
 
   bstring config_file;
   ovs_config_t ovs_config;
+  bool enable_enodeb_stats;
 } sgw_config_t;
 
 void sgw_config_init(sgw_config_t* config_pP);

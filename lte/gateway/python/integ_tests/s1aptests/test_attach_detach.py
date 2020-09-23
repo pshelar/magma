@@ -12,7 +12,7 @@ limitations under the License.
 """
 
 import unittest
-
+import time 
 import s1ap_types
 
 from integ_tests.s1aptests import s1ap_wrapper
@@ -49,6 +49,7 @@ class TestAttachDetach(unittest.TestCase):
             print("************************* Running UE detach for UE id ",
                   req.ue_id)
             # Now detach the UE
+            time.sleep(50)
             self._s1ap_wrapper.s1_util.detach(
                 req.ue_id, detach_type[i], wait_for_s1[i])
 
