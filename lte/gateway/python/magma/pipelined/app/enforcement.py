@@ -184,7 +184,7 @@ class EnforcementController(PolicyMixin, MagmaController):
                     imsi, ip_addr, apn_ambr, flow, rule_num, priority,
                     rule.qos, rule.hard_timeout, rule.id, rule.app_name,
                     rule.app_service_type, self.next_main_table,
-                    version, self._qos_mgr, self._enforcement_stats_tbl))
+                    version, self._qos_mgr, self._enforcement_stats_tbl, rule.he.urls))
 
             except FlowMatchError as err:  # invalid match
                 self.logger.error(

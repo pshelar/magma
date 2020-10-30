@@ -29,7 +29,7 @@ from lte.protos.policydb_pb2 import PolicyRule
 from magma.pipelined.app.dpi import UNCLASSIFIED_PROTO_ID, get_app_id
 from magma.pipelined.imsi import encode_imsi
 from magma.pipelined.policy_converters import FlowMatchError, \
-    flow_match_to_magma_match, convert_ipv4_str_to_ip_proto
+    flow_match_to_magma_match, convert_ipv4_str_to_ip_proto, get_flow_ip_dst
 
 from magma.pipelined.qos.types import QosInfo
 from magma.pipelined.utils import Utils
@@ -53,6 +53,8 @@ class PolicyMixin(metaclass=ABCMeta):
         self._rule_mapper = kwargs['rule_id_mapper']
         self._session_rule_version_mapper = kwargs[
             'session_rule_version_mapper']
+        self.proxy_controller_fut = kwargs['app_futures']['proxy']
+        self.proxy_controller = None
 
     def handle_restart(self,
                        requests: List[ActivateFlowsRequest]
@@ -96,6 +98,10 @@ class PolicyMixin(metaclass=ABCMeta):
         # redirection relies on async dns request to be setup and we can't
         # currently do this from out synchronous setup request. So just reinsert
         self._process_redirection_rules(requests)
+
+        if self.proxy_controller or self.proxy_controller_fut.done():
+            if not self.proxy_controller:
+                self.proxy_controller = self.proxy_controller_fut.result()
 
         self.init_finished = True
         return SetupFlowsResult(result=SetupFlowsResult.SUCCESS)
@@ -270,7 +276,7 @@ class PolicyMixin(metaclass=ABCMeta):
     def _get_classify_rule_flow_msgs(self, imsi, ip_addr, apn_ambr, flow, rule_num,
                                      priority, qos, hard_timeout, rule_id, app_name,
                                      app_service_type, next_table, version, qos_mgr,
-                                     copy_table):
+                                     copy_table, urls:str = None, msisdn: str = None):
         """
         Install a flow from a rule. If the flow action is DENY, then the flow
         will drop the packet. Otherwise, the flow classifies the packet with
@@ -282,6 +288,7 @@ class PolicyMixin(metaclass=ABCMeta):
         flow_match_actions, instructions = self._get_action_for_rule(
             flow, rule_num, imsi, ip_addr, apn_ambr, qos, rule_id, version, qos_mgr)
         msgs = []
+        self.logger.error("add policy: ue ip")
         if app_name:
             # We have to allow initial traffic to pass through, before it gets
             # classified by DPI, flow match set app_id to unclassified
@@ -334,6 +341,10 @@ class PolicyMixin(metaclass=ABCMeta):
                 copy_table=copy_table,
                 resubmit_table=next_table)
             )
+
+        msgs.append(self.proxy_controller.get_subscriber_flows(ip_addr,
+                                                               get_flow_ip_dst(flow.match),
+                                                               urls, imsi, msisdn))
         return msgs
 
     def _get_action_for_rule(self, flow, rule_num, imsi, ip_addr,

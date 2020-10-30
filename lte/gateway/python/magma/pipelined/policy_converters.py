@@ -155,6 +155,16 @@ def flip_flow_match(match):
     )
 
 
+def get_flow_ip_dst(match):
+    ip_dst = getattr(match, 'ip_dst', None)
+    if ip_dst is None:
+        return
+
+    decoded_ip = _get_ip_tuple(ip_dst.address.decode('utf-8'))
+    if ip_dst.version == IPAddress.IPV4:
+        return decoded_ip
+
+
 def get_ue_ip_match_args(ip_addr: IPAddress, direction: Direction):
     ip_match = {}
 

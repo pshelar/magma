@@ -34,6 +34,7 @@ setup_type: LTE
 static_services: [
   'arpd',
   'access_control',
+  'proxy',
   'ryu_rest_service',
   'startup_flows',
 #  'packet_tracer',
