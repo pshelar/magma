@@ -22,6 +22,7 @@ TEST_PACKET_REG = 'reg5'
 PASSTHROUGH_REG = 'reg6'
 VLAN_TAG_REG = 'reg7'
 TUN_PORT_REG = 'reg8'
+PROXY_TAG_REG = 'reg9'
 
 # Local scratch registers (These registers are reset when submitting to
 # another app):
@@ -31,6 +32,9 @@ RULE_VERSION_REG = 'reg4'
 # Register values
 REG_ZERO_VAL = 0x0
 PASSTHROUGH_REG_VAL = 0x1
+
+# values for PROXY_TAG_REG
+PROXY_TAG_TO_PROXY = 0x1
 
 
 class Direction(IntEnum):
@@ -60,6 +64,21 @@ def load_direction(parser, direction: Direction):
     if not is_valid_direction(direction):
         raise Exception("Invalid direction")
     return parser.NXActionRegLoad2(dst=DIRECTION_REG, value=direction.value)
+
+
+def reset_in_port(parser, port_no):
+    """
+    Wrapper for loading the direction register
+    """
+
+    return parser.NXActionRegLoad2(dst='in_port', value=port_no)
+
+
+def set_proxy_tag(parser):
+    """
+    Wrapper for setting proxy flow tag.
+    """
+    return parser.NXActionRegLoad2(dst=PROXY_TAG_REG, value=PROXY_TAG_TO_PROXY)
 
 
 def is_valid_direction(direction: Direction):

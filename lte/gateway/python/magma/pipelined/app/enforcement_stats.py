@@ -143,13 +143,14 @@ class EnforcementStatsController(PolicyMixin, MagmaController):
         if self._clean_restart:
             self.delete_all_flows(datapath)
 
-    def _install_flow_for_rule(self, imsi, ip_addr, apn_ambr, rule):
+    def _install_flow_for_rule(self, imsi, msisdn: bytes, ip_addr, apn_ambr, rule):
         """
         Install a flow to get stats for a particular rule. Flows will match on
         IMSI, cookie (the rule num), in/out direction
 
         Args:
             imsi (string): subscriber to install rule for
+            msisdn (bytes): subscriber ISDN
             ip_addr (string): subscriber session ipv4 address
             rule (PolicyRule): policy rule proto
         """

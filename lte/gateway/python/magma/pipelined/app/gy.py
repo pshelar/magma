@@ -161,7 +161,7 @@ class GYController(PolicyMixin, MagmaController):
                                                         num)
         self._qos_mgr.remove_subscriber_qos(imsi, num)
 
-    def _install_flow_for_rule(self, imsi, ip_addr, apn_ambr, rule):
+    def _install_flow_for_rule(self, imsi, msisdn:bytes, ip_addr, apn_ambr, rule):
         """
         Install a flow to get stats for a particular rule. Flows will match on
         IMSI, cookie (the rule num), in/out direction
@@ -183,7 +183,7 @@ class GYController(PolicyMixin, MagmaController):
 
         flow_adds = []
         try:
-            flow_adds = self._get_rule_match_flow_msgs(imsi, ip_addr, apn_ambr, rule)
+            flow_adds = self._get_rule_match_flow_msgs(imsi, msisdn, ip_addr, apn_ambr, rule)
         except FlowMatchError:
             return RuleModResult.FAILURE
 
@@ -274,13 +274,14 @@ class GYController(PolicyMixin, MagmaController):
 
         return remaining_flows
 
-    def _get_rule_match_flow_msgs(self, imsi, ip_addr, apn_ambr, rule):
+    def _get_rule_match_flow_msgs(self, imsi, msisdn: bytes, ip_addr, apn_ambr, rule):
         """
         Get flow msgs to get stats for a particular rule. Flows will match on
         IMSI, cookie (the rule num), in/out direction
 
         Args:
             imsi (string): subscriber to install rule for
+            msisdn (bytes): subscriber ISDN
             ip_addr (string): subscriber session ipv4 address
             apn_ambr (integer): maximum bandwidth for non-GBR EPS bearers
             rule (PolicyRule): policy rule proto
@@ -294,7 +295,7 @@ class GYController(PolicyMixin, MagmaController):
                 version = self._session_rule_version_mapper.get_version(imsi, ip_addr,
                                                                         rule.id)
                 flow_adds.extend(self._get_classify_rule_flow_msgs(
-                    imsi, ip_addr, apn_ambr, flow, rule_num, priority,
+                    imsi, msisdn, ip_addr, apn_ambr, flow, rule_num, priority,
                     rule.qos, rule.hard_timeout, rule.id, rule.app_name,
                     rule.app_service_type, self.next_service_table,
                     version, self._qos_mgr, self._enforcement_stats_tbl))
