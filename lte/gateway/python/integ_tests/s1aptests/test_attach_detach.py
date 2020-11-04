@@ -10,6 +10,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
+import time
 
 import unittest
 import s1ap_types
@@ -48,6 +49,7 @@ class TestAttachDetach(unittest.TestCase):
             print("************************* Running UE detach for UE id ",
                   req.ue_id)
             # Now detach the UE
+            time.sleep(60)
             self._s1ap_wrapper.s1_util.detach(
                 req.ue_id, detach_type[i], wait_for_s1[i])
 
