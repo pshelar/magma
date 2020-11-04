@@ -53,23 +53,23 @@ func main() {
 	test_proto := []*protos.AddUEHeaderEnrichmentRequest{{
 		UeIp: &lte_p.IPAddress{
 			Version: lte_p.IPAddress_IPV4,
-			Address: []byte("3.3.33.3"),
+			Address: []byte("2.2.2.2"),
 		},
-		Websites: []string{"neverssl.com", "google.com"},
+		Websites: []string{"3.3.3.3", "google.com"},
 		Headers: []*protos.Header{{
 			Name:  "IMSI",
-			Value: "024212312312",
+			Value: "2",
 		}},
 	},
 		{
 			UeIp: &lte_p.IPAddress{
 				Version: lte_p.IPAddress_IPV4,
-				Address: []byte("2.2.2.2"),
+				Address: []byte("2.2.2.222"),
 			},
-			Websites: []string{"magma.com", "qqq.com"},
+			Websites: []string{"3.3.3.3", "qqq.com"},
 			Headers: []*protos.Header{{
 				Name:  "IMSI",
-				Value: "111111",
+				Value: "222222",
 			},
 				{
 					Name:  "MSISDN",
@@ -78,18 +78,18 @@ func main() {
 		}}
 	control_plane.UpdateSnapshot(test_proto)
 
-	test_proto = []*protos.AddUEHeaderEnrichmentRequest{{
-		UeIp: &lte_p.IPAddress{
-			Version: lte_p.IPAddress_IPV4,
-			Address: []byte("4.4.4.4"),
-		},
-		Websites: []string{"neverssl.com", "google.com"},
-		Headers: []*protos.Header{{
-			Name:  "IMSI",
-			Value: "4444444",
-		}},
-	}}
-	control_plane.UpdateSnapshot(test_proto)
+	// test_proto = []*protos.AddUEHeaderEnrichmentRequest{{
+	// 	UeIp: &lte_p.IPAddress{
+	// 		Version: lte_p.IPAddress_IPV4,
+	// 		Address: []byte("4.4.4.4"),
+	// 	},
+	// 	Websites: []string{"neverssl.com", "google.com"},
+	// 	Headers: []*protos.Header{{
+	// 		Name:  "IMSI",
+	// 		Value: "4444444",
+	// 	}},
+	// }}
+	// control_plane.UpdateSnapshot(test_proto)
 
 	// Run the service
 	err = srv.Run()

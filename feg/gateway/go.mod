@@ -24,6 +24,7 @@ replace (
 require (
 	github.com/emakeev/milenage v1.0.0
 	github.com/emakeev/snowflake v0.0.0-20200206205012-767080b052fe
+	github.com/envoyproxy/go-control-plane v0.9.4
 	github.com/fiorix/go-diameter/v4 v4.0.2
 	github.com/fsnotify/fsnotify v1.4.9 // indirect
 	github.com/go-openapi/swag v0.19.5
@@ -37,6 +38,7 @@ require (
 	github.com/prometheus/client_model v0.2.0
 	github.com/prometheus/common v0.9.1
 	github.com/shirou/gopsutil v2.20.3+incompatible
+	github.com/sirupsen/logrus v1.4.2
 	github.com/stretchr/objx v0.3.0 // indirect
 	github.com/stretchr/testify v1.6.1
 	github.com/thoas/go-funk v0.7.0
