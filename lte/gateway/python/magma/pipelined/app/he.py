@@ -125,6 +125,8 @@ class HeaderEnrichmentController(MagmaController):
         #     logging.error("Missing dst ip, ignoring HE rule.")
         #     return []
 
+        logging.info("got it")
+        return []
         self.set_he_target_urls(ue_addr, ip_dst, urls, imsi, msisdn)
 
         msgs = []
