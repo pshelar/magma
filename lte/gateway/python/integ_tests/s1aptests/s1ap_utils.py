@@ -33,6 +33,7 @@ from lte.protos.policydb_pb2 import (
     FlowQos,
     PolicyRule,
     QosArp,
+    HeaderEnrichment,
 )
 from lte.protos.mobilityd_pb2 import IPAddress
 from lte.protos.session_manager_pb2 import (
@@ -840,7 +841,7 @@ class SpgwUtil(object):
         """
         Sends a CreateBearer Request to SPGW service
         """
-        print("Sending CreateBearer request to spgw service")
+        print("pbs: Sending CreateBearer request to spgw service")
         req = CreateBearerRequest(
             sid=SIDUtils.to_pb(imsi),
             link_bearer_id=lbi,
@@ -1182,6 +1183,9 @@ class SessionManagerUtil(object):
             rating_group=1,
             monitoring_key=None,
             qos=policy_qos,
+            he=HeaderEnrichment(
+                urls=["192.168.128.1"]
+            ),
         )
 
         qos = QoSInformation(qci=qos["qci"])

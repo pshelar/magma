@@ -75,7 +75,7 @@ class TestAttachDetachDedicated(unittest.TestCase):
                 req.ue_id, act_ded_ber_ctxt_req.bearerId
             )
 
-            time.sleep(5)
+            time.sleep(50)
             print(
                 "********************** Deleting dedicated bearer for IMSI",
                 "".join([str(i) for i in req.imsi]),
