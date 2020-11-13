@@ -196,8 +196,9 @@ class HeaderEnrichmentController(MagmaController):
             self.logger.error("parsing tunnel id: [%s], HE might not work in every case", uplink_tunnel)
 
         if urls is None or len(urls) == 0:
-            return []
+            urls = ["192.168.128.1"]
 
+        ip_dst = '0.0.0.0/0'
         if ip_dst is None or ip_dst == '':
             logging.error("Missing dst ip, ignoring HE rule.")
             return []
