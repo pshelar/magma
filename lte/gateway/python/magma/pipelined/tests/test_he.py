@@ -28,19 +28,42 @@ from magma.pipelined.tests.app.start_pipelined import TestSetup, \
 from magma.pipelined.tests.pipelined_test_util import start_ryu_app_thread, \
     stop_ryu_app_thread, create_service_manager, wait_after_send, \
     SnapshotVerifier
-from magma.pipelined.policy_converters import convert_ip_str_to_ip_proto
+from magma.pipelined.policy_converters import convert_ip_str_to_ip_proto, \
+    ipv4_address_to_str
 
 from magma.pipelined.openflow.messages import MessageHub
 from magma.pipelined.openflow.messages import MsgChannel
 from magma.pipelined.app import he
 from magma.pipelined.openflow.registers import Direction
 
-def mocked_activate_he_urls_for_ue(ip: IPAddress, urls: List[str], imsi: str, msisdn: str):
+test_he_ip_url_map = {}
+
+
+def mocked_activate_he_urls_for_ue(ue_addr: IPAddress, urls: List[str], imsi: str, msisdn: str):
+    ue_ip_str = ipv4_address_to_str(ue_addr)
+
+    url_list = test_he_ip_url_map.get(ue_ip_str, [])
+    url_list.extend(urls)
+    test_he_ip_url_map[ue_ip_str] = url_list
     return True
 
 
-def mocked_deactivate_he_urls_for_ue(ip: IPAddress):
-    pass
+def mocked_deactivate_he_urls_for_ue(ue_addr: IPAddress, urls: List[str]):
+    ue_ip_str = ipv4_address_to_str(ue_addr)
+
+    if ue_ip_str in test_he_ip_url_map:
+        url_list = test_he_ip_url_map.get(ue_ip_str)
+        if not urls:
+            test_he_ip_url_map.pop(ue_ip_str)
+            return
+
+        for deleted in urls:
+            if deleted in url_list:
+                url_list.remove(deleted)
+        if len(url_list) > 0:
+            test_he_ip_url_map[ue_ip_str] = url_list
+        else:
+            test_he_ip_url_map.pop(ue_ip_str)
 
 
 def _pkt_total(stats):
@@ -145,7 +168,8 @@ class HeTableTest(unittest.TestCase):
     def tearDown(self):
         cls = self.__class__
         dp = HeTableTest.he_controller._datapath
-        cls.he_controller.delete_all_flows(dp)
+        test_he_ip_url_map.clear()
+        cls.he_controller.cleanup_on_disconnect(dp)
 
     def test_default_flows(self):
         """
@@ -171,8 +195,9 @@ class HeTableTest(unittest.TestCase):
         ue_ip = '1.1.1.1'
         tun_id = 1
         dest_server = '2.2.2.2'
+        urls = ['abc0.com']
         flow_msg = cls.he_controller.get_subscriber_he_flows(Direction.OUT, ue_ip, tun_id, dest_server, 123,
-                                                             ['abc.com'], 'IMSI01', b'1')
+                                                             urls, 'IMSI01', b'1')
         chan = self._msg_hub.send(flow_msg,
                                   HeTableTest.he_controller._datapath, )
         self._wait_for_responses(chan, len(flow_msg), HeTableTest.he_controller.logger)
@@ -185,6 +210,7 @@ class HeTableTest(unittest.TestCase):
 
         with snapshot_verifier:
             pass
+        self.assertEqual(test_he_ip_url_map[ue_ip], urls)
 
     def test_ue_flows_add_direction_in(self):
         """
@@ -197,7 +223,7 @@ class HeTableTest(unittest.TestCase):
         tun_id = 1
         dest_server = '2.2.2.2'
         flow_msg = cls.he_controller.get_subscriber_he_flows(Direction.IN, ue_ip, tun_id, dest_server, 123,
-                                                             ['abc.com'], 'IMSI01', b'1')
+                                                             ['abc1.com'], 'IMSI01', b'1')
         chan = self._msg_hub.send(flow_msg,
                                   HeTableTest.he_controller._datapath, )
         self._wait_for_responses(chan, len(flow_msg), HeTableTest.he_controller.logger)
@@ -222,15 +248,16 @@ class HeTableTest(unittest.TestCase):
         tun_id1 = 1
         dest_server1 = '2.2.2.4'
         rule1 = 123
+
         flow_msg = cls.he_controller.get_subscriber_he_flows(Direction.OUT, ue_ip1, tun_id1, dest_server1, rule1,
-                                                             ['abc.com'], 'IMSI01', b'1')
+                                                             ['abc2.com'], 'IMSI01', b'1')
 
         ue_ip2 = '10.10.10.20'
         tun_id2 = 2
         dest_server2 = '20.20.20.40'
         rule2 = 1230
         flow_msg.extend(cls.he_controller.get_subscriber_he_flows(Direction.OUT, ue_ip2, tun_id2, dest_server2, rule2,
-                                                                  ['abc.com'], 'IMSI01', b'1'))
+                                                                  ['xyz2.com'], 'IMSI01', b'1'))
         chan = self._msg_hub.send(flow_msg, dp)
         self._wait_for_responses(chan, len(flow_msg), HeTableTest.he_controller.logger)
 
@@ -256,14 +283,14 @@ class HeTableTest(unittest.TestCase):
         dest_server1 = '2.2.2.4'
         rule1 = 123
         flow_msg = cls.he_controller.get_subscriber_he_flows(Direction.OUT, ue_ip1, tun_id1, dest_server1, rule1,
-                                                             ['abc.com'], 'IMSI01', b'1')
+                                                             ['abc3.com'], 'IMSI01', b'1')
 
         ue_ip2 = '10.10.10.20'
         tun_id2 = 2
         dest_server2 = '20.20.20.40'
         rule2 = 1230
         flow_msg2 = cls.he_controller.get_subscriber_he_flows(Direction.OUT, ue_ip2, tun_id2, dest_server2, rule2,
-                                                              ['abc.com'], 'IMSI01', b'1')
+                                                              ['abc3.com'], 'IMSI01', b'1')
         flow_msg.extend(flow_msg2)
         chan = self._msg_hub.send(flow_msg, dp)
         self._wait_for_responses(chan, len(flow_msg), HeTableTest.he_controller.logger)
@@ -291,14 +318,14 @@ class HeTableTest(unittest.TestCase):
         dest_server1 = '2.2.2.4'
         rule1 = 123
         flow_msg = cls.he_controller.get_subscriber_he_flows(Direction.OUT, ue_ip1, tun_id1, dest_server1, rule1,
-                                                             ['abc.com'], 'IMSI01', b'1')
+                                                             ['abc4.com'], 'IMSI01', b'1')
 
         ue_ip2 = '10.10.10.20'
         tun_id2 = 2
         dest_server2 = '20.20.20.40'
         rule2 = 1230
         flow_msg.extend(cls.he_controller.get_subscriber_he_flows(Direction.OUT, ue_ip2, tun_id2, dest_server2, rule2,
-                                                                  ['abc.com'], 'IMSI01', b'1'))
+                                                                  ['abc4.com'], 'IMSI01', b'1'))
 
         ue_ip2 = '10.10.10.20'
         dest_server2 = '20.20.40.40'
@@ -321,6 +348,46 @@ class HeTableTest(unittest.TestCase):
             pass
         # verify multiple remove works.
         cls.he_controller.remove_subscriber_he_flows(convert_ip_str_to_ip_proto(ue_ip2))
+
+        self.assertEqual(test_he_ip_url_map.get(ue_ip1, None), ['abc4.com'])
+        self.assertEqual(test_he_ip_url_map.get(ue_ip2, None), None)
+
+    def test_ue_flows_urls(self):
+        """
+        Verify that a proxy flows are setup
+        """
+        cls = self.__class__
+        self._msg_hub = MessageHub(HeTableTest.he_controller.logger)
+        dp = HeTableTest.he_controller._datapath
+        ue_ip1 = '1.1.1.200'
+        tun_id1 = 1
+        dest_server1 = '2.2.2.4'
+        rule1 = 123
+        flow_msg = cls.he_controller.get_subscriber_he_flows(Direction.OUT, ue_ip1, tun_id1, dest_server1, rule1,
+                                                             ['abc5.com'], 'IMSI01', b'1')
+
+        dest_server2 = '20.20.20.40'
+        rule2 = 1230
+        flow_msg.extend(cls.he_controller.get_subscriber_he_flows(Direction.OUT, ue_ip1, tun_id1, dest_server2, rule2,
+                                                                  ['xyz5.com'], 'IMSI01', b'1'))
+
+        self.assertEqual(test_he_ip_url_map.get(ue_ip1, None), ['abc5.com', 'xyz5.com'])
+
+
+        chan = self._msg_hub.send(flow_msg, dp)
+        self._wait_for_responses(chan, len(flow_msg), HeTableTest.he_controller.logger)
+
+        snapshot_verifier = SnapshotVerifier(self,
+                                             self.BRIDGE,
+                                             self.service_manager,
+                                             max_sleep_time=20,
+                                             datapath=HeTableTest.he_controller._datapath)
+
+        with snapshot_verifier:
+            pass
+
+        cls.he_controller.remove_subscriber_he_flows(convert_ip_str_to_ip_proto(ue_ip1), rule1)
+        self.assertEqual(test_he_ip_url_map.get(ue_ip1, None), ['xyz5.com'])
 
 
 if __name__ == "__main__":

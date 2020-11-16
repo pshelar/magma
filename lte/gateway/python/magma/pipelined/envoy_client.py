@@ -57,7 +57,7 @@ def activate_he_urls_for_ue(ip: IPAddress, urls: List[str], imsi: str, msisdn: s
     return False
 
 
-def deactivate_he_urls_for_ue(ip: IPAddress):
+def deactivate_he_urls_for_ue(ip: IPAddress, urls: List[str]):
     """
     Make RPC call to 'Envoy Controller' to remove the proxy rule for the UE.
     """

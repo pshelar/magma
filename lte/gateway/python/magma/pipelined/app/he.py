@@ -11,7 +11,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 from collections import namedtuple
-from typing import List
+from typing import List, Dict
 
 from ryu.lib.packet import ether_types
 from ryu.lib.packet.in_proto import IPPROTO_TCP
@@ -35,6 +35,59 @@ import logging
 PROXY_PORT_NAME = 'proxy_port'
 HTTP_PORT = 80
 PROXY_TABLE = 'proxy'
+
+
+class RuleToUrl():
+    """
+    Maintain mapping from rule to URLs. This is used during
+    deactivating proxy rules.
+    """
+
+    def __init__(self):
+        # map UE to a map for rule-id to URL list
+        self._map = {}
+
+    def add_rule(self, ue_ip: str, rule_id: int, urls: List[str]) -> bool:
+        rule_map = self._map.get(ue_ip, {})
+        url_list = rule_map.get(rule_id, None)
+        if url_list:
+            logging.error("URLs %s already set for rule %d for UE %s",
+                          url_list, rule_id, ue_ip)
+            return False
+        rule_map[rule_id] = urls
+        self._map[ue_ip] = rule_map
+        return True
+
+    def ue_has_urls_set(self, ue_ip: str):
+        if ue_ip in self._map:
+            return True
+        else:
+            return False
+
+    def get_urls(self, ue_ip:str, rule_id: int) -> List[str]:
+        rule_map = self._map.get(ue_ip, None)
+        if not rule_map:
+            return None
+
+        url_list = rule_map.get(rule_id, None)
+        return url_list
+
+    def del_urls(self, ue_ip: str, rule_id: int):
+        if not rule_id or rule_id == -1:
+            self._map.pop(ue_ip, None)
+            return
+
+        rule_map = self._map.get(ue_ip, None)
+        if not rule_map:
+            return
+
+        rule_map.pop(rule_id, None)
+        if len(rule_map) <= 0:
+            self._map.pop(ue_ip)
+        return
+
+    def clear(self):
+        self._map.clear()
 
 
 class HeaderEnrichmentController(MagmaController):
@@ -71,7 +124,7 @@ class HeaderEnrichmentController(MagmaController):
         self.next_table = \
             self._service_manager.get_next_table_num(self.APP_NAME)
         self.config = self._get_config(kwargs['config'])
-        self._he_enabled_ue_ips = []
+        self._ue_urls_map = RuleToUrl()
         self.logger.info("Header Enrichment app config: %s", self.config)
 
     def _get_config(self, config_dict) -> namedtuple:
@@ -103,6 +156,7 @@ class HeaderEnrichmentController(MagmaController):
             datapath: ryu datapath struct
         """
         self.delete_all_flows(datapath)
+        self._ue_urls_map.clear()
 
     def delete_all_flows(self, datapath):
         flows.delete_all_flows_from_table(datapath, self.tbl_num)
@@ -166,9 +220,15 @@ class HeaderEnrichmentController(MagmaController):
                      "urls %s, imsi %s, msisdn %s", ue_addr, uplink_tunnel, ip_dst,
                      str(rule_num), str(urls), imsi, str(msisdn))
 
-        success = self._set_he_target_urls(ue_addr, urls, imsi, msisdn)
+        success = self._ue_urls_map.add_rule(ue_addr, rule_num, urls)
         if not success:
             return []
+
+        success = self._set_he_target_urls(ue_addr, urls, imsi, msisdn)
+        if not success:
+            self._ue_urls_map.del_urls(ue_addr, rule_num)
+            return []
+
         msgs = []
         # 1.a. Going to UE: from uplink send to proxy
         match = MagmaMatch(in_port=self.config.uplink_port,
@@ -272,7 +332,6 @@ class HeaderEnrichmentController(MagmaController):
                                                             actions=actions,
                                                             priority=flows.DEFAULT_PRIORITY,
                                                             resubmit_table=self.next_table))
-        self._he_enabled_ue_ips.append(ue_addr)
         return msgs
 
     def remove_subscriber_he_flows(self, ue_addr: IPAddress, rule_num: int = -1):
@@ -282,12 +341,14 @@ class HeaderEnrichmentController(MagmaController):
             ue_addr(str): IP address of UE
             rule_num(int): rule num of the policy rule
         """
-        logging.info("Del HE rule: ue-ip: %s rule %d", ue_addr, rule_num)
         ue_ip_str = ipv4_address_to_str(ue_addr)
 
-        if ue_ip_str not in self._he_enabled_ue_ips:
-            return
+        urls = None
         if rule_num == -1:
+            if not self._ue_urls_map.ue_has_urls_set(ue_ip_str):
+                return
+            logging.info("Del HE rule: ue-ip: %s rule ALL", ue_addr)
+
             ip_match_in = get_ue_ip_match_args(ue_addr, Direction.IN)
             match_in = MagmaMatch(eth_type=get_eth_type(ue_addr),
                                   **ip_match_in)
@@ -297,10 +358,16 @@ class HeaderEnrichmentController(MagmaController):
             match_out = MagmaMatch(eth_type=get_eth_type(ue_addr),
                                    **ip_match_out)
             flows.delete_flow(self._datapath, self.tbl_num, match_out)
+
         else:
             match = MagmaMatch()
+            urls = self._ue_urls_map.get_urls(ue_ip_str, rule_num)
+            if not urls:
+                return
+            logging.info("Del HE rule: ue-ip: %s rule %d urls %s", ue_addr, rule_num, urls)
+
             flows.delete_flow(self._datapath, self.tbl_num, match,
                               cookie=rule_num, cookie_mask=flows.OVS_COOKIE_MATCH_ALL)
 
-        deactivate_he_urls_for_ue(ue_addr)
-        self._he_enabled_ue_ips.remove(ue_ip_str)
+        deactivate_he_urls_for_ue(ue_addr, urls)
+        self._ue_urls_map.del_urls(ue_ip_str, rule_num)
