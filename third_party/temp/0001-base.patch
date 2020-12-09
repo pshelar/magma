@@ -1,19 +1,19 @@
-From 10f1818a080ad2e5695eed5362b24b9e29c06b7a Mon Sep 17 00:00:00 2001
+From 72093e1bfdcc5262ea790a930f3bad6177dd50e0 Mon Sep 17 00:00:00 2001
 From: Pravin B Shelar <pbshelar@fb.com>
 Date: Sat, 28 Nov 2020 23:10:56 -0800
-Subject: [PATCH] base
+Subject: [PATCH 1/2] base
 
 Signed-off-by: Pravin B Shelar <pshelar@ovn.org>
 ---
- drivers/net/gtp.c                  | 509 ++++++++++++++++++++---------
+ drivers/net/gtp.c                  | 538 ++++++++++++++++++++---------
  include/uapi/linux/gtp.h           |  10 +
  include/uapi/linux/if_link.h       |   1 +
  include/uapi/linux/if_tunnel.h     |   1 +
  tools/include/uapi/linux/if_link.h |   1 +
- 5 files changed, 375 insertions(+), 147 deletions(-)
+ 5 files changed, 395 insertions(+), 156 deletions(-)
 
 diff --git a/drivers/net/gtp.c b/drivers/net/gtp.c
-index 4c04e271f184..5e01579eb3dc 100644
+index 4c04e271f184..f8442eb11198 100644
 --- a/drivers/net/gtp.c
 +++ b/drivers/net/gtp.c
 @@ -21,6 +21,8 @@
@@ -105,12 +105,12 @@ index 4c04e271f184..5e01579eb3dc 100644
 +			gtp->dev->stats.rx_length_errors++;
 +			goto err;
 +		}
-+
+ 
+-	netdev_dbg(pctx->dev, "forwarding packet from GGSN to uplink\n");
 +		skb_dst_set(skb, &tun_dst->dst);
 +	} else {
 +		struct pdp_ctx *pctx;
- 
--	netdev_dbg(pctx->dev, "forwarding packet from GGSN to uplink\n");
++
 +		if (flags & GTP1_F_MASK)
 +			hdrlen += 4;
 +
@@ -314,7 +314,7 @@ index 4c04e271f184..5e01579eb3dc 100644
  
  	/* Bits    8  7  6  5  4  3  2	1
  	 *	  +--+--+--+--+--+--+--+--+
-@@ -428,49 +496,66 @@ static inline void gtp1_push_header(struct sk_buff *skb, struct pdp_ctx *pctx)
+@@ -428,89 +496,164 @@ static inline void gtp1_push_header(struct sk_buff *skb, struct pdp_ctx *pctx)
  	gtp1->flags	= 0x30; /* v1, GTP-non-prime. */
  	gtp1->type	= GTP_TPDU;
  	gtp1->length	= htons(payload_len);
@@ -410,7 +410,10 @@ index 4c04e271f184..5e01579eb3dc 100644
  }
  
  static int gtp_build_skb_ip4(struct sk_buff *skb, struct net_device *dev,
-@@ -480,37 +565,86 @@ static int gtp_build_skb_ip4(struct sk_buff *skb, struct net_device *dev,
+ 			     struct gtp_pktinfo *pktinfo)
+ {
+ 	struct gtp_dev *gtp = netdev_priv(dev);
++	struct gtpu_metadata *opts = NULL;
  	struct pdp_ctx *pctx;
  	struct rtable *rt;
  	struct flowi4 fl4;
@@ -450,6 +453,19 @@ index 4c04e271f184..5e01579eb3dc 100644
 +		tos = info->key.tos;
 +		if (info->key.tun_flags & TUNNEL_DONT_FRAGMENT)
 +			df = htons(IP_DF);
++
++		if (info->options_len != 0) {
++			if (info->key.tun_flags & TUNNEL_GTPU_OPT) {
++				opts = ip_tunnel_info_opts(info);
++			} else {
++				netdev_dbg(dev, "missing tunnel metadata for control pkt");
++				return -EOPNOTSUPP;
++			}
++		}
++		netdev_dbg(dev, "flow-based GTP1U encap: tunnel id %d\n",
++			   be32_to_cpu(tun_id));
++	} else {
++		struct iphdr *iph;
  
 -	/* Read the IP destination address and resolve the PDP context.
 -	 * Prepend PDP header with TEI/TID from PDP ctx.
@@ -459,18 +475,13 @@ index 4c04e271f184..5e01579eb3dc 100644
 -		pctx = ipv4_pdp_find(gtp, iph->saddr);
 -	else
 -		pctx = ipv4_pdp_find(gtp, iph->daddr);
-+		netdev_dbg(dev, "flow-based GTP1U encap: tunnel id %d\n",
-+			   be32_to_cpu(tun_id));
-+	} else {
-+		struct iphdr *iph;
++		if (ntohs(skb->protocol) != ETH_P_IP)
++			return -EOPNOTSUPP;
  
 -	if (!pctx) {
 -		netdev_dbg(dev, "no PDP ctx found for %pI4, skip\n",
 -			   &iph->daddr);
 -		return -ENOENT;
-+		if (ntohs(skb->protocol) != ETH_P_IP)
-+			return -EOPNOTSUPP;
-+
 +		iph = ip_hdr(skb);
 +
 +		/* Read the IP destination address and resolve the PDP context.
@@ -517,7 +528,7 @@ index 4c04e271f184..5e01579eb3dc 100644
  		dev->stats.collisions++;
  		goto err_rt;
  	}
-@@ -518,11 +652,10 @@ static int gtp_build_skb_ip4(struct sk_buff *skb, struct net_device *dev,
+@@ -518,11 +661,10 @@ static int gtp_build_skb_ip4(struct sk_buff *skb, struct net_device *dev,
  	skb_dst_drop(skb);
  
  	/* This is similar to tnl_update_pmtu(). */
@@ -530,7 +541,7 @@ index 4c04e271f184..5e01579eb3dc 100644
  		case GTP_V0:
  			mtu -= sizeof(struct gtp0_header);
  			break;
-@@ -536,17 +669,26 @@ static int gtp_build_skb_ip4(struct sk_buff *skb, struct net_device *dev,
+@@ -536,17 +678,38 @@ static int gtp_build_skb_ip4(struct sk_buff *skb, struct net_device *dev,
  
  	rt->dst.ops->update_pmtu(&rt->dst, NULL, skb, mtu, false);
  
@@ -549,6 +560,18 @@ index 4c04e271f184..5e01579eb3dc 100644
 -	gtp_push_header(skb, pktinfo);
 +	gtp_set_pktinfo_ipv4(pktinfo, sk, tos, rt, &fl4, dev);
 +
++	if (unlikely(opts)) {
++		int err;
++
++		pktinfo->gtph_port = htons(GTP1U_PORT);
++		err = gtp1_push_control_header(skb, tun_id, opts, dev);
++		if (err) {
++			netdev_info(dev, "cntr pkt error %d", err);
++			goto err_rt;
++		}
++		return 0;
++	}
++
 +	switch (gtp_version) {
 +	case GTP_V0:
 +		pktinfo->gtph_port = htons(GTP0_PORT);
@@ -562,19 +585,29 @@ index 4c04e271f184..5e01579eb3dc 100644
  
  	return 0;
  err_rt:
-@@ -571,9 +713,11 @@ static netdev_tx_t gtp_dev_xmit(struct sk_buff *skb, struct net_device *dev)
+@@ -557,7 +720,6 @@ static int gtp_build_skb_ip4(struct sk_buff *skb, struct net_device *dev,
+ 
+ static netdev_tx_t gtp_dev_xmit(struct sk_buff *skb, struct net_device *dev)
+ {
+-	unsigned int proto = ntohs(skb->protocol);
+ 	struct gtp_pktinfo pktinfo;
+ 	int err;
+ 
+@@ -569,32 +731,22 @@ static netdev_tx_t gtp_dev_xmit(struct sk_buff *skb, struct net_device *dev)
+ 
+ 	/* PDP context lookups in gtp_build_skb_*() need rcu read-side lock. */
  	rcu_read_lock();
- 	switch (proto) {
- 	case ETH_P_IP:
-+	case ETH_P_IPV6:
- 		err = gtp_build_skb_ip4(skb, dev, &pktinfo);
- 		break;
- 	default:
-+		netdev_dbg(dev, "unknown proto: %d", proto);
- 		err = -EOPNOTSUPP;
- 		break;
- 	}
-@@ -582,19 +726,16 @@ static netdev_tx_t gtp_dev_xmit(struct sk_buff *skb, struct net_device *dev)
+-	switch (proto) {
+-	case ETH_P_IP:
+-		err = gtp_build_skb_ip4(skb, dev, &pktinfo);
+-		break;
+-	default:
+-		err = -EOPNOTSUPP;
+-		break;
+-	}
++	err = gtp_build_skb_ip4(skb, dev, &pktinfo);
+ 	rcu_read_unlock();
+ 
  	if (err < 0)
  		goto tx_err;
  
@@ -604,7 +637,7 @@ index 4c04e271f184..5e01579eb3dc 100644
  
  	return NETDEV_TX_OK;
  tx_err:
-@@ -610,6 +751,20 @@ static const struct net_device_ops gtp_netdev_ops = {
+@@ -610,6 +762,20 @@ static const struct net_device_ops gtp_netdev_ops = {
  	.ndo_get_stats64	= dev_get_tstats64,
  };
  
@@ -625,7 +658,7 @@ index 4c04e271f184..5e01579eb3dc 100644
  static void gtp_link_setup(struct net_device *dev)
  {
  	dev->netdev_ops		= &gtp_netdev_ops;
-@@ -634,7 +789,7 @@ static void gtp_link_setup(struct net_device *dev)
+@@ -634,7 +800,7 @@ static void gtp_link_setup(struct net_device *dev)
  }
  
  static int gtp_hashtable_new(struct gtp_dev *gtp, int hsize);
@@ -634,7 +667,7 @@ index 4c04e271f184..5e01579eb3dc 100644
  
  static void gtp_destructor(struct net_device *dev)
  {
-@@ -652,11 +807,24 @@ static int gtp_newlink(struct net *src_net, struct net_device *dev,
+@@ -652,11 +818,24 @@ static int gtp_newlink(struct net *src_net, struct net_device *dev,
  	struct gtp_net *gn;
  	int hashsize, err;
  
@@ -660,7 +693,7 @@ index 4c04e271f184..5e01579eb3dc 100644
  	if (!data[IFLA_GTP_PDP_HASHSIZE]) {
  		hashsize = 1024;
  	} else {
-@@ -669,7 +837,7 @@ static int gtp_newlink(struct net *src_net, struct net_device *dev,
+@@ -669,7 +848,7 @@ static int gtp_newlink(struct net *src_net, struct net_device *dev,
  	if (err < 0)
  		return err;
  
@@ -669,7 +702,7 @@ index 4c04e271f184..5e01579eb3dc 100644
  	if (err < 0)
  		goto out_hashtable;
  
-@@ -683,7 +851,7 @@ static int gtp_newlink(struct net *src_net, struct net_device *dev,
+@@ -683,7 +862,7 @@ static int gtp_newlink(struct net *src_net, struct net_device *dev,
  	list_add_rcu(&gtp->list, &gn->gtp_dev_list);
  	dev->priv_destructor = gtp_destructor;
  
@@ -678,7 +711,7 @@ index 4c04e271f184..5e01579eb3dc 100644
  
  	return 0;
  
-@@ -706,6 +874,7 @@ static void gtp_dellink(struct net_device *dev, struct list_head *head)
+@@ -706,6 +885,7 @@ static void gtp_dellink(struct net_device *dev, struct list_head *head)
  			pdp_context_delete(pctx);
  
  	list_del_rcu(&gtp->list);
@@ -686,7 +719,7 @@ index 4c04e271f184..5e01579eb3dc 100644
  	unregister_netdevice_queue(dev, head);
  }
  
-@@ -714,6 +883,7 @@ static const struct nla_policy gtp_policy[IFLA_GTP_MAX + 1] = {
+@@ -714,6 +894,7 @@ static const struct nla_policy gtp_policy[IFLA_GTP_MAX + 1] = {
  	[IFLA_GTP_FD1]			= { .type = NLA_U32 },
  	[IFLA_GTP_PDP_HASHSIZE]		= { .type = NLA_U32 },
  	[IFLA_GTP_ROLE]			= { .type = NLA_U32 },
@@ -694,7 +727,7 @@ index 4c04e271f184..5e01579eb3dc 100644
  };
  
  static int gtp_validate(struct nlattr *tb[], struct nlattr *data[],
-@@ -737,6 +907,9 @@ static int gtp_fill_info(struct sk_buff *skb, const struct net_device *dev)
+@@ -737,6 +918,9 @@ static int gtp_fill_info(struct sk_buff *skb, const struct net_device *dev)
  	if (nla_put_u32(skb, IFLA_GTP_PDP_HASHSIZE, gtp->hash_size))
  		goto nla_put_failure;
  
@@ -704,7 +737,7 @@ index 4c04e271f184..5e01579eb3dc 100644
  	return 0;
  
  nla_put_failure:
-@@ -782,35 +955,24 @@ static int gtp_hashtable_new(struct gtp_dev *gtp, int hsize)
+@@ -782,35 +966,24 @@ static int gtp_hashtable_new(struct gtp_dev *gtp, int hsize)
  	return -ENOMEM;
  }
  
@@ -746,7 +779,7 @@ index 4c04e271f184..5e01579eb3dc 100644
  	}
  
  	sock_hold(sk);
-@@ -821,15 +983,58 @@ static struct sock *gtp_encap_enable_socket(int fd, int type,
+@@ -821,15 +994,58 @@ static struct sock *gtp_encap_enable_socket(int fd, int type,
  	tuncfg.encap_destroy = gtp_encap_destroy;
  
  	setup_udp_tunnel_sock(sock_net(sock->sk), sock, &tuncfg);
@@ -777,9 +810,8 @@ index 4c04e271f184..5e01579eb3dc 100644
 +		return ERR_PTR(err);
 +
 +	return sock->sk;
- }
- 
--static int gtp_encap_enable(struct gtp_dev *gtp, struct nlattr *data[])
++}
++
 +static struct socket *gtp_create_gtp_socket(struct gtp_dev *gtp,struct net_device *dev)
 +{
 +	struct udp_port_cfg udp_conf;
@@ -804,13 +836,14 @@ index 4c04e271f184..5e01579eb3dc 100644
 +	}
 +	pr_debug("create gtp sock done\n");
 +	return sock;
-+}
-+
+ }
+ 
+-static int gtp_encap_enable(struct gtp_dev *gtp, struct nlattr *data[])
 +static int gtp_encap_enable(struct gtp_dev *gtp, struct net_device *dev, struct nlattr *data[])
  {
  	struct sock *sk1u = NULL;
  	struct sock *sk0 = NULL;
-@@ -853,11 +1058,21 @@ static int gtp_encap_enable(struct gtp_dev *gtp, struct nlattr *data[])
+@@ -853,11 +1069,21 @@ static int gtp_encap_enable(struct gtp_dev *gtp, struct nlattr *data[])
  		}
  	}
  
@@ -834,7 +867,7 @@ index 4c04e271f184..5e01579eb3dc 100644
  			return -EINVAL;
  		}
  	}
-@@ -1416,7 +1631,7 @@ static int __init gtp_init(void)
+@@ -1416,7 +1642,7 @@ static int __init gtp_init(void)
  	if (err < 0)
  		goto unreg_genl_family;
  

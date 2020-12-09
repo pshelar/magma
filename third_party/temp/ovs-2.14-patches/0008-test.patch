@@ -1,0 +1,178 @@
+From 3a16d2306befbaf7d89933b15b5791f290e8b15d Mon Sep 17 00:00:00 2001
+From: Pravin B Shelar <pbshelar@fb.com>
+Date: Mon, 7 Dec 2020 08:26:10 +0000
+Subject: [PATCH 8/8] test
+
+---
+ .../linux/compat/include/linux/openvswitch.h  |  1 +
+ lib/dpif-netlink-rtnl.c                       |  5 -----
+ tests/automake.mk                             |  2 +-
+ tests/system-kmod-macros.at                   |  2 +-
+ tests/system-layer3-tunnels.at                | 19 ++++++++++++-------
+ 5 files changed, 15 insertions(+), 14 deletions(-)
+
+diff --git a/datapath/linux/compat/include/linux/openvswitch.h b/datapath/linux/compat/include/linux/openvswitch.h
+index cc41bbea4..b25bf26e5 100644
+--- a/datapath/linux/compat/include/linux/openvswitch.h
++++ b/datapath/linux/compat/include/linux/openvswitch.h
+@@ -405,6 +405,7 @@ enum ovs_tunnel_key_attr {
+ 	OVS_TUNNEL_KEY_ATTR_IPV6_DST,		/* struct in6_addr dst IPv6 address. */
+ 	OVS_TUNNEL_KEY_ATTR_PAD,
+ 	OVS_TUNNEL_KEY_ATTR_ERSPAN_OPTS,	/* struct erspan_metadata */
++	OVS_TUNNEL_KEY_ATTR_IPV4_INFO_BRIDGE,   /* No argument. IPV4_INFO_BRIDGE mode.*/
+ 	OVS_TUNNEL_KEY_ATTR_GTPU_OPTS,		/* struct gtpu_metadata */
+ 	__OVS_TUNNEL_KEY_ATTR_MAX
+ };
+diff --git a/lib/dpif-netlink-rtnl.c b/lib/dpif-netlink-rtnl.c
+index 0207c854c..2d047756b 100644
+--- a/lib/dpif-netlink-rtnl.c
++++ b/lib/dpif-netlink-rtnl.c
+@@ -241,7 +241,6 @@ dpif_netlink_rtnl_gtp_verify(const struct netdev_tunnel_config OVS_UNUSED *tnl,
+     err = rtnl_policy_parse(kind, reply, gtp_policy, gre,
+                             ARRAY_SIZE(gtp_policy));
+ 
+-    VLOG_ERR("rtnl_policy_parse %d", err);
+     if (!err) {
+         if (!nl_attr_get_flag(gre[IFLA_GTP_COLLECT_METADATA])) {
+             VLOG_ERR("no md");
+@@ -408,7 +407,6 @@ dpif_netlink_rtnl_create(const struct netdev_tunnel_config *tnl_cfg,
+     nl_msg_end_nested(&request, linkinfo_off);
+ 
+     err = nl_transact(NETLINK_ROUTE, &request, NULL);
+-    VLOG_WARN("tnll tarnsact %d", err);
+     if (!err && (type == OVS_VPORT_TYPE_GRE ||
+                  type == OVS_VPORT_TYPE_IP6GRE ||
+                  type == OVS_VPORT_TYPE_GTPU)) {
+@@ -449,13 +447,11 @@ dpif_netlink_rtnl_port_create(struct netdev *netdev)
+     type = netdev_to_ovs_vport_type(netdev_get_type(netdev));
+     tnl_cfg = netdev_get_tunnel_config(netdev);
+     if (!tnl_cfg) {
+-        VLOG_WARN_RL(&rl, "could not find tnl config");
+         return EOPNOTSUPP;
+     }
+ 
+     kind = vport_type_to_kind(type, tnl_cfg);
+     if (!kind) {
+-        VLOG_WARN_RL(&rl, "could not find tnl config");
+         return EOPNOTSUPP;
+     }
+ 
+@@ -485,7 +481,6 @@ dpif_netlink_rtnl_port_create(struct netdev *netdev)
+     }
+ 
+     err = dpif_netlink_rtnl_verify(tnl_cfg, type, name);
+-    VLOG_WARN("dpif_netlink_rtnl_verify %d", err);
+     if (err) {
+         int err2 = dpif_netlink_rtnl_destroy(name);
+         if (err2) {
+diff --git a/tests/automake.mk b/tests/automake.mk
+index a7588cee0..b0af380d9 100644
+--- a/tests/automake.mk
++++ b/tests/automake.mk
+@@ -334,7 +334,7 @@ check-kernel: all
+ # Testing the out of tree Kernel module
+ check-kmod: all
+ 	$(MAKE) modules_install
+-	modprobe -r -a vport-geneve vport-gre vport-lisp vport-stt vport-vxlan vport-gtp openvswitch
++	modprobe -r -a vport-geneve vport-gre  vport-vxlan gtp openvswitch
+ 	$(MAKE) check-kernel
+ 
+ check-system-userspace: all
+diff --git a/tests/system-kmod-macros.at b/tests/system-kmod-macros.at
+index daf66bdec..76c4f70ff 100644
+--- a/tests/system-kmod-macros.at
++++ b/tests/system-kmod-macros.at
+@@ -18,7 +18,7 @@ m4_define([_ADD_BR], [[add-br $1 -- set Bridge $1 protocols=OpenFlow10,OpenFlow1
+ m4_define([OVS_TRAFFIC_VSWITCHD_START],
+   [AT_CHECK([modprobe openvswitch])
+    on_exit 'modprobe -r openvswitch'
+-   m4_foreach([mod], [[vport_geneve], [vport_gre], [vport_lisp], [vport_stt], [vport_vxlan]],
++   m4_foreach([mod], [[vport_geneve], [vport_gre], [vport_vxlan]],
+               [modprobe -q mod || echo "Module mod not loaded."
+                on_exit 'modprobe -q -r mod'
+               ])
+diff --git a/tests/system-layer3-tunnels.at b/tests/system-layer3-tunnels.at
+index 5587d6cde..4c1c29ef7 100644
+--- a/tests/system-layer3-tunnels.at
++++ b/tests/system-layer3-tunnels.at
+@@ -166,7 +166,7 @@ dnl Set up underlay link from host into the namespace using veth pair.
+ ADD_VETH(p0, at_ns0, br-underlay, "172.31.1.1/24")
+ AT_CHECK([ip addr add dev br-underlay "172.31.1.100/24"])
+ AT_CHECK([ip link set dev br-underlay up])
+-AT_CHECK([modprobe vport_gtp])
++dnl AT_CHECK([modprobe vport_gtp])
+ 
+ dnl Set up tunnel endpoints on OVS outside the namespace and with a native
+ dnl linux device inside the namespace.
+@@ -176,8 +176,9 @@ AT_CHECK([ip neigh add 10.1.1.1 lladdr 00:12:34:56:78:aa dev br0])
+ NS_CHECK_EXEC([at_ns0], [gtp-link add at_gtp1 --sgsn &], [0], [ignore])
+ NS_CHECK_EXEC([at_ns0], [gtp-tunnel add at_gtp1 v1 0 0 10.1.1.1 172.31.1.100], [0], [ignore], [ignore])
+ NS_CHECK_EXEC([at_ns0], [ip addr add dev at_gtp1 10.1.1.1/24])
+-NS_CHECK_EXEC([at_ns0], [ip link set dev at_gtp1 mtu 1450 up])
+-NS_CHECK_EXEC([at_ns0], [ip link set dev p0 mtu 1480 up])
++NS_CHECK_EXEC([at_ns0], [ip link set dev at_gtp1 mtu 1400 up])
++
++AT_CHECK([ip link set dev br0 mtu 1460 up])
+ 
+ AT_CHECK([ovs-ofctl add-flow br-underlay "actions=normal"])
+ 
+@@ -197,9 +198,12 @@ NS_CHECK_EXEC([at_ns0], [ping -q -c 3 -i 0.3 -w 2 172.31.1.100 | FORMAT_PING], [
+ 
+ OVS_WAIT_UNTIL([ip netns exec at_ns0 ping -c 1 10.1.1.2])
+ dnl Okay, now check the overlay with different packet sizes
++
++
+ NS_CHECK_EXEC([at_ns0], [ping -q -c 3 -i 0.3 -w 2 10.1.1.2 | FORMAT_PING], [0], [dnl
+ 3 packets transmitted, 3 received, 0% packet loss, time 0ms
+ ])
++
+ NS_CHECK_EXEC([at_ns0], [ping -s 3200 -q -c 3 -i 0.3 -w 2 10.1.1.2 | FORMAT_PING], [0], [dnl
+ 3 packets transmitted, 3 received, 0% packet loss, time 0ms
+ ])
+@@ -222,7 +226,7 @@ AT_CHECK([ip link set dev br-underlay up])
+ dnl Set up tunnel endpoints on OVS outside the namespace and with a native
+ dnl linux device inside the namespace.
+ 
+-AT_CHECK([modprobe vport_gtp])
++dnl AT_CHECK([modprobe vport_gtp])
+ ADD_OVS_TUNNEL([gtpu], [br0], [at_gtp0], [172.31.1.1], [10.1.1.2/24])
+ AT_CHECK([ip neigh add 10.1.1.1 lladdr 00:12:34:56:78:aa dev br0])
+ 
+@@ -260,7 +264,7 @@ dnl Set up underlay link from host into the namespace using veth pair.
+ ADD_VETH(p0, at_ns0, br-underlay, "172.31.1.1/24")
+ AT_CHECK([ip addr add dev br-underlay "172.31.1.100/24"])
+ AT_CHECK([ip link set dev br-underlay up])
+-AT_CHECK([modprobe vport_gtp])
++dnl AT_CHECK([modprobe vport_gtp])
+ 
+ dnl Set up tunnel endpoints on OVS outside the namespace and with a native
+ dnl linux device inside the namespace.
+@@ -276,6 +280,7 @@ AT_CHECK([ovs-ofctl add-flow br-underlay "actions=normal"])
+ 
+ AT_CHECK([ovs-appctl vlog/set dbg], [0], [ignore])
+ AT_CHECK([echo 'module openvswitch +p' > /sys/kernel/debug/dynamic_debug/control])
++AT_CHECK([echo 'module gtp +p' > /sys/kernel/debug/dynamic_debug/control])
+ 
+ AT_CHECK([ovs-appctl tnl/gtp_echo_remote_end_points], [0], [dnl
+ Tunnel port: at_gtp0
+@@ -321,7 +326,7 @@ ADD_VETH(p1, at_ns1, br-underlay, "172.31.1.2/24")
+ AT_CHECK([ip addr add dev br-underlay "172.31.1.100/24"])
+ AT_CHECK([ip link set dev br-underlay up])
+ 
+-AT_CHECK([modprobe vport_gtp])
++dnl AT_CHECK([modprobe vport_gtp])
+ dnl Set up tunnel endpoints on OVS outside the namespace and with a native
+ dnl linux device inside the namespace.
+ 
+@@ -388,7 +393,7 @@ ADD_VETH(p0, at_ns0, br-underlay, "172.31.1.1/24")
+ AT_CHECK([ip addr add dev br-underlay "172.31.1.100/24"])
+ AT_CHECK([ip link set dev br-underlay up])
+ 
+-AT_CHECK([modprobe vport_gtp])
++dnl AT_CHECK([modprobe vport_gtp])
+ dnl Set up tunnel endpoints on OVS outside the namespace and with a native
+ dnl linux device inside the namespace.
+ 
+-- 
+2.27.0
+

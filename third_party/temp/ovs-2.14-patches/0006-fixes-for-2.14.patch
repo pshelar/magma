@@ -1,0 +1,151 @@
+From 3d44ea1672b5add13f95968eaa222638d338754c Mon Sep 17 00:00:00 2001
+From: Pravin B Shelar <pbshelar@fb.com>
+Date: Sat, 28 Nov 2020 23:09:50 -0800
+Subject: [PATCH 6/8] fixes for 2.14
+
+---
+ datapath/flow_netlink.c                          |  1 +
+ .../linux/compat/include/linux/openvswitch.h     |  3 ---
+ lib/odp-util.c                                   | 16 ++++++++++++++++
+ manpages.mk                                      |  5 ++---
+ tests/tunnel.at                                  | 10 +++++-----
+ 5 files changed, 24 insertions(+), 11 deletions(-)
+
+diff --git a/datapath/flow_netlink.c b/datapath/flow_netlink.c
+index f7e54cfc1..b51b99c82 100644
+--- a/datapath/flow_netlink.c
++++ b/datapath/flow_netlink.c
+@@ -41,6 +41,7 @@
+ #include <linux/icmp.h>
+ #include <linux/icmpv6.h>
+ #include <linux/rculist.h>
++#include <linux/openvswitch.h>
+ #include <net/geneve.h>
+ #include <net/ip.h>
+ #include <net/ipv6.h>
+diff --git a/datapath/linux/compat/include/linux/openvswitch.h b/datapath/linux/compat/include/linux/openvswitch.h
+index 2d884312f..cc41bbea4 100644
+--- a/datapath/linux/compat/include/linux/openvswitch.h
++++ b/datapath/linux/compat/include/linux/openvswitch.h
+@@ -405,10 +405,7 @@ enum ovs_tunnel_key_attr {
+ 	OVS_TUNNEL_KEY_ATTR_IPV6_DST,		/* struct in6_addr dst IPv6 address. */
+ 	OVS_TUNNEL_KEY_ATTR_PAD,
+ 	OVS_TUNNEL_KEY_ATTR_ERSPAN_OPTS,	/* struct erspan_metadata */
+-#ifndef __KERNEL__
+-	/* Only used within userspace data path. */
+ 	OVS_TUNNEL_KEY_ATTR_GTPU_OPTS,		/* struct gtpu_metadata */
+-#endif
+ 	__OVS_TUNNEL_KEY_ATTR_MAX
+ };
+ 
+diff --git a/lib/odp-util.c b/lib/odp-util.c
+index 1de1d07ef..c19654a03 100644
+--- a/lib/odp-util.c
++++ b/lib/odp-util.c
+@@ -5216,10 +5216,24 @@ scan_gtpu_metadata(const char *s,
+                    struct gtpu_metadata *mask)
+ {
+     const char *s_base = s;
++    uint8_t ver = 0, ver_ma = 0;
+     uint8_t flags = 0, flags_ma = 0;
+     uint8_t msgtype = 0, msgtype_ma = 0;
+     int len;
+ 
++    if (!strncmp(s, "ver=", 4)) {
++        s += 4;
++        len = scan_u8(s, &ver, mask ? &ver_ma : NULL);
++        if (len == 0) {
++            return 0;
++        }
++        s += len;
++    }
++    if (s[0] == ',') {
++        s++;
++    }
++
++
+     if (!strncmp(s, "flags=", 6)) {
+         s += 6;
+         len = scan_u8(s, &flags, mask ? &flags_ma : NULL);
+@@ -5244,9 +5258,11 @@ scan_gtpu_metadata(const char *s,
+ 
+     if (!strncmp(s, ")", 1)) {
+         s += 1;
++        key->ver = ver;
+         key->flags = flags;
+         key->msgtype = msgtype;
+         if (mask) {
++            mask->ver = ver_ma;
+             mask->flags = flags_ma;
+             mask->msgtype = msgtype_ma;
+         }
+diff --git a/manpages.mk b/manpages.mk
+index dc201484c..5f04b9c2c 100644
+--- a/manpages.mk
++++ b/manpages.mk
+@@ -104,7 +104,6 @@ utilities/bugtool/ovs-bugtool.8: \
+ utilities/bugtool/ovs-bugtool.8.in:
+ lib/ovs.tmac:
+ 
+-
+ utilities/ovs-dpctl-top.8: \
+ 	utilities/ovs-dpctl-top.8.in \
+ 	lib/ovs.tmac
+@@ -155,8 +154,6 @@ lib/common-syn.man:
+ lib/common.man:
+ lib/ovs.tmac:
+ 
+-lib/ovs.tmac:
+-
+ utilities/ovs-testcontroller.8: \
+ 	utilities/ovs-testcontroller.8.in \
+ 	lib/common.man \
+@@ -211,6 +208,7 @@ vswitchd/ovs-vswitchd.8: \
+ 	lib/coverage-unixctl.man \
+ 	lib/daemon.man \
+ 	lib/dpctl.man \
++	lib/dpdk-unixctl.man \
+ 	lib/dpif-netdev-unixctl.man \
+ 	lib/memory-unixctl.man \
+ 	lib/netdev-dpdk-unixctl.man \
+@@ -230,6 +228,7 @@ lib/common.man:
+ lib/coverage-unixctl.man:
+ lib/daemon.man:
+ lib/dpctl.man:
++lib/dpdk-unixctl.man:
+ lib/dpif-netdev-unixctl.man:
+ lib/memory-unixctl.man:
+ lib/netdev-dpdk-unixctl.man:
+diff --git a/tests/tunnel.at b/tests/tunnel.at
+index 89190cf1b..faf677a29 100644
+--- a/tests/tunnel.at
++++ b/tests/tunnel.at
+@@ -1216,20 +1216,20 @@ OVS_VSWITCHD_START([add-port br0 p1 -- set Interface p1 type=gtpu \
+ OVS_VSWITCHD_DISABLE_TUNNEL_PUSH_POP
+ 
+ AT_DATA([flows.txt], [dnl
+-actions=load:0x8->NXM_NX_TUN_FLAGS[[]],output:1
+-table=2,actions=move:NXM_NX_TUN_FLAGS[[]]->NXM_NX_REG4[[0..3]],output:1
++actions=load:0x8->NXM_NX_TUN_ID[[]],output:1
++table=2,actions=move:NXM_NX_TUN_ID[[0..3]]->NXM_NX_REG4[[0..3]],output:1
+ ])
+ AT_CHECK([ovs-ofctl add-flows br0 flows.txt])
+ 
+ AT_CHECK([ovs-ofctl dump-flows br0], [0], [stdout])
+ AT_CHECK([strip_xids < stdout | sed -n 's/duration=[[0-9]]*\.[[0-9]]*s/duration=0.0s/p' | sort], [0], [dnl
+- cookie=0x0, duration=0.0s, table=0, n_packets=0, n_bytes=0, idle_age=0, actions=load:0x8->NXM_NX_TUN_FLAGS[[]],output:1
+- cookie=0x0, duration=0.0s, table=2, n_packets=0, n_bytes=0, idle_age=0, actions=move:NXM_NX_TUN_FLAGS[[]]->NXM_NX_REG4[[0..3]],output:1
++ cookie=0x0, duration=0.0s, table=0, n_packets=0, n_bytes=0, idle_age=0, actions=load:0x8->NXM_NX_TUN_ID[[]],output:1
++ cookie=0x0, duration=0.0s, table=2, n_packets=0, n_bytes=0, idle_age=0, actions=move:NXM_NX_TUN_ID[[0..3]]->NXM_NX_REG4[[0..3]],output:1
+ ])
+ 
+ AT_CHECK([ovs-appctl ofproto/trace ovs-dummy 'in_port(2),eth(src=50:54:00:00:00:05,dst=50:54:00:00:00:07),eth_type(0x0800),ipv4(src=192.168.0.1,dst=192.168.0.2,proto=6,tos=4,ttl=128,frag=no),tcp(src=8,dst=9)'], [0], [stdout])
+ AT_CHECK([tail -1 stdout], [0],
+-  [Datapath actions: set(tunnel(tun_id=0x0,dst=1.1.1.1,ttl=64,tp_dst=2152,flags(df|key))),pop_eth,2152
++  [Datapath actions: set(tunnel(tun_id=0x8,dst=1.1.1.1,ttl=64,tp_dst=2152,flags(df|key))),pop_eth,2152
+ ])
+ OVS_VSWITCHD_STOP
+ AT_CLEANUP
+-- 
+2.27.0
+

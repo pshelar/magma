@@ -1,0 +1,373 @@
+From c41b958226aaa531024a6180da66276b14718897 Mon Sep 17 00:00:00 2001
+From: Pravin B Shelar <pbshelar@fb.com>
+Date: Mon, 30 Nov 2020 13:48:36 -0800
+Subject: [PATCH 7/8] gtp: add support for netlink GTP dev
+
+---
+ datapath/flow_netlink.c                       |  1 +
+ datapath/linux/compat/gtp.c                   | 34 +++++++----
+ datapath/linux/compat/include/linux/if_link.h | 18 ++++--
+ .../linux/compat/include/net/ip_tunnels.h     |  7 ++-
+ lib/dpif-netlink-rtnl.c                       | 61 +++++++++++++++----
+ 5 files changed, 91 insertions(+), 30 deletions(-)
+
+diff --git a/datapath/flow_netlink.c b/datapath/flow_netlink.c
+index b51b99c82..a1842e1c3 100644
+--- a/datapath/flow_netlink.c
++++ b/datapath/flow_netlink.c
+@@ -45,6 +45,7 @@
+ #include <net/geneve.h>
+ #include <net/ip.h>
+ #include <net/ipv6.h>
++#include <net/ip_tunnels.h>
+ #include <net/ndisc.h>
+ #include <net/mpls.h>
+ #include <net/vxlan.h>
+diff --git a/datapath/linux/compat/gtp.c b/datapath/linux/compat/gtp.c
+index 46add66dc..20ad23ecb 100644
+--- a/datapath/linux/compat/gtp.c
++++ b/datapath/linux/compat/gtp.c
+@@ -21,7 +21,6 @@
+ #include <linux/file.h>
+ #include <linux/gtp.h>
+ 
+-#include <net/dst_cache.h>
+ #include <net/dst_metadata.h>
+ #include <net/net_namespace.h>
+ #include <net/protocol.h>
+@@ -190,6 +189,15 @@ static bool gtp_check_ms(struct sk_buff *skb, struct pdp_ctx *pctx,
+ 	return false;
+ }
+ 
++static int check_header(struct sk_buff *skb, int len)
++{
++	if (unlikely(skb->len < len))
++		return -EINVAL;
++	if (unlikely(!pskb_may_pull(skb, len)))
++		return -ENOMEM;
++	return 0;
++}
++
+ static int gtp_rx(struct gtp_dev *gtp, struct sk_buff *skb,
+ 			unsigned int hdrlen, u8 gtp_version, unsigned int role,
+ 			__be64 tid, u8 flags, u8 type)
+@@ -283,6 +291,20 @@ static int gtp_rx(struct gtp_dev *gtp, struct sk_buff *skb,
+ 	 * calculate the transport header.
+ 	 */
+ 	skb_reset_network_header(skb);
++	if (!check_header(skb, sizeof(struct iphdr))) {
++		struct iphdr *iph;
++
++		iph = ip_hdr(skb);
++		if (iph->version == 4) {
++			netdev_dbg(gtp->dev, "inner pkt: ipv4");
++			skb->protocol = htons(ETH_P_IP);
++		} else if (iph->version == 6) {
++			netdev_dbg(gtp->dev, "inner pkt: ipv6");
++			skb->protocol = htons(ETH_P_IPV6);
++		} else {
++			netdev_dbg(gtp->dev, "inner pkt: control pkt");
++		}
++	}
+ 
+ 	skb->dev = gtp->dev;
+ 
+@@ -582,8 +604,6 @@ static struct rtable *gtp_get_v4_rt(struct sk_buff *skb,
+                                        struct flowi4 *fl4,
+                                        const struct ip_tunnel_info *info)
+ {
+-	bool use_cache = ip_tunnel_dst_cache_usable(skb, info);
+-	struct dst_cache *dst_cache;
+ 	struct rtable *rt = NULL;
+ 
+ 	if (!gs4)
+@@ -596,12 +616,6 @@ static struct rtable *gtp_get_v4_rt(struct sk_buff *skb,
+ 	fl4->saddr = info->key.u.ipv4.src;
+ 	fl4->flowi4_tos = RT_TOS(info->key.tos);
+ 
+-	dst_cache = (struct dst_cache *)&info->dst_cache;
+-	if (use_cache) {
+-		rt = dst_cache_get_ip4(dst_cache, &fl4->saddr);
+-		if (rt)
+-			return rt;
+-	}
+ 	rt = ip_route_output_key(dev_net(dev), fl4);
+ 	if (IS_ERR(rt)) {
+ 		netdev_dbg(dev, "no route to %pI4\n", &fl4->daddr);
+@@ -612,8 +626,6 @@ static struct rtable *gtp_get_v4_rt(struct sk_buff *skb,
+ 		ip_rt_put(rt);
+ 		return ERR_PTR(-ELOOP);
+ 	}
+-	if (use_cache)
+-		dst_cache_set_ip4(dst_cache, &rt->dst, fl4->saddr);
+ 	return rt;
+ }
+ 
+diff --git a/datapath/linux/compat/include/linux/if_link.h b/datapath/linux/compat/include/linux/if_link.h
+index 092d79468..bb263a129 100644
+--- a/datapath/linux/compat/include/linux/if_link.h
++++ b/datapath/linux/compat/include/linux/if_link.h
+@@ -177,11 +177,21 @@ enum ifla_gtp_role {
+ };
+ #endif
+ 
+-#ifndef HAVE_IFLA_GTP_ROLE
+-
+ enum {
+-	IFLA_GTP_ROLE = (IFLA_GTP_PDP_HASHSIZE + 1)
++#define IFLA_GTP_UNSPEC rpl_IFLA_GTP_UNSPEC
++	IFLA_GTP_UNSPEC,
++#define IFLA_GTP_FD0 rpl_IFLA_GTP_FD0
++	IFLA_GTP_FD0,
++#define IFLA_GTP_FD1 rpl_IFLA_GTP_FD1
++	IFLA_GTP_FD1,
++#define IFLA_GTP_PDP_HASHSIZE rpl_IFLA_GTP_PDP_HASHSIZE
++	IFLA_GTP_PDP_HASHSIZE,
++#define IFLA_GTP_ROLE rpl_IFLA_GTP_ROLE
++	IFLA_GTP_ROLE,
++#define IFLA_GTP_COLLECT_METADATA rpl_IFLA_GTP_COLLECT_METADATA
++	IFLA_GTP_COLLECT_METADATA,
++#define __IFLA_GTP_MAX rpl___IFLA_GTP_MAX
++	__IFLA_GTP_MAX,
+ };
+-#endif
+ 
+ #endif
+diff --git a/datapath/linux/compat/include/net/ip_tunnels.h b/datapath/linux/compat/include/net/ip_tunnels.h
+index a0dcc2667..23272b55e 100644
+--- a/datapath/linux/compat/include/net/ip_tunnels.h
++++ b/datapath/linux/compat/include/net/ip_tunnels.h
+@@ -9,9 +9,6 @@
+  * be used. Those needs to be explicitly defined in this header file. */
+ #include_next <net/ip_tunnels.h>
+ 
+-#ifndef TUNNEL_ERSPAN_OPT
+-#define TUNNEL_ERSPAN_OPT	__cpu_to_be16(0x4000)
+-#endif
+ #define ovs_ip_tunnel_encap ip_tunnel_encap
+ 
+ #ifndef HAVE_IP_TUNNEL_INFO_OPTS_SET_FLAGS
+@@ -510,6 +507,10 @@ static inline int iptunnel_pull_offloads(struct sk_buff *skb)
+ #define skb_is_encapsulated ovs_skb_is_encapsulated
+ bool ovs_skb_is_encapsulated(struct sk_buff *skb);
+ 
++#ifndef TUNNEL_ERSPAN_OPT
++#define TUNNEL_ERSPAN_OPT	__cpu_to_be16(0x4000)
++#endif
++
+ #ifndef TUNNEL_GTPU_OPT
+ #define TUNNEL_GTPU_OPT          __cpu_to_be16(0x8000)
+ #endif
+diff --git a/lib/dpif-netlink-rtnl.c b/lib/dpif-netlink-rtnl.c
+index fd157ce2d..0207c854c 100644
+--- a/lib/dpif-netlink-rtnl.c
++++ b/lib/dpif-netlink-rtnl.c
+@@ -20,13 +20,14 @@
+ 
+ #include <net/if.h>
+ #include <linux/ip.h>
++#include <linux/if_link.h>
+ #include <linux/rtnetlink.h>
++#include <unistd.h>
+ 
+ #include "dpif-netlink.h"
+ #include "netdev-vport.h"
+ #include "netlink-socket.h"
+ #include "openvswitch/vlog.h"
+-
+ VLOG_DEFINE_THIS_MODULE(dpif_netlink_rtnl);
+ 
+ /* On some older systems, these enums are not defined. */
+@@ -58,6 +59,10 @@ VLOG_DEFINE_THIS_MODULE(dpif_netlink_rtnl);
+ #define IFLA_GENEVE_UDP_ZERO_CSUM6_RX 10
+ #endif
+ 
++#ifndef IFLA_GTP_COLLECT_METADATA
++#define IFLA_GTP_COLLECT_METADATA 5
++#endif
++
+ static const struct nl_policy rtlink_policy[] = {
+     [IFLA_LINKINFO] = { .type = NL_A_NESTED },
+ };
+@@ -81,6 +86,9 @@ static const struct nl_policy geneve_policy[] = {
+     [IFLA_GENEVE_UDP_ZERO_CSUM6_RX] = { .type = NL_A_U8 },
+     [IFLA_GENEVE_PORT] = { .type = NL_A_U16 },
+ };
++static const struct nl_policy gtp_policy[] = {
++    [IFLA_GTP_COLLECT_METADATA] = { .type = NL_A_FLAG },
++};
+ 
+ static const char *
+ vport_type_to_kind(enum ovs_vport_type type,
+@@ -112,7 +120,7 @@ vport_type_to_kind(enum ovs_vport_type type,
+             return NULL;
+         }
+     case OVS_VPORT_TYPE_GTPU:
+-        return NULL;
++        return "gtp";
+     case OVS_VPORT_TYPE_NETDEV:
+     case OVS_VPORT_TYPE_INTERNAL:
+     case OVS_VPORT_TYPE_LISP:
+@@ -223,6 +231,27 @@ dpif_netlink_rtnl_gre_verify(const struct netdev_tunnel_config OVS_UNUSED *tnl,
+     return err;
+ }
+ 
++static int
++dpif_netlink_rtnl_gtp_verify(const struct netdev_tunnel_config OVS_UNUSED *tnl,
++                             const char *kind, struct ofpbuf *reply)
++{
++    struct nlattr *gre[ARRAY_SIZE(gtp_policy)];
++    int err;
++
++    err = rtnl_policy_parse(kind, reply, gtp_policy, gre,
++                            ARRAY_SIZE(gtp_policy));
++
++    VLOG_ERR("rtnl_policy_parse %d", err);
++    if (!err) {
++        if (!nl_attr_get_flag(gre[IFLA_GTP_COLLECT_METADATA])) {
++            VLOG_ERR("no md");
++            err = EINVAL;
++        }
++    }
++
++    return err;
++}
++
+ static int
+ dpif_netlink_rtnl_geneve_verify(const struct netdev_tunnel_config *tnl_cfg,
+                                 const char *kind, struct ofpbuf *reply)
+@@ -254,11 +283,13 @@ dpif_netlink_rtnl_verify(const struct netdev_tunnel_config *tnl_cfg,
+ 
+     kind = vport_type_to_kind(type, tnl_cfg);
+     if (!kind) {
++        VLOG_ERR("kind not foudn");
+         return EOPNOTSUPP;
+     }
+ 
+     err = dpif_netlink_rtnl_getlink(name, &reply);
+     if (err) {
++        VLOG_ERR("dpif_netlink_rtnl_getlink error %d", err);
+         return err;
+     }
+ 
+@@ -275,11 +306,13 @@ dpif_netlink_rtnl_verify(const struct netdev_tunnel_config *tnl_cfg,
+     case OVS_VPORT_TYPE_GENEVE:
+         err = dpif_netlink_rtnl_geneve_verify(tnl_cfg, kind, reply);
+         break;
++    case OVS_VPORT_TYPE_GTPU:
++        err = dpif_netlink_rtnl_gtp_verify(tnl_cfg, kind, reply);
++        break;
+     case OVS_VPORT_TYPE_NETDEV:
+     case OVS_VPORT_TYPE_INTERNAL:
+     case OVS_VPORT_TYPE_LISP:
+     case OVS_VPORT_TYPE_STT:
+-    case OVS_VPORT_TYPE_GTPU:
+     case OVS_VPORT_TYPE_UNSPEC:
+     case __OVS_VPORT_TYPE_MAX:
+     default:
+@@ -357,11 +390,13 @@ dpif_netlink_rtnl_create(const struct netdev_tunnel_config *tnl_cfg,
+         nl_msg_put_u8(&request, IFLA_GENEVE_UDP_ZERO_CSUM6_RX, 1);
+         nl_msg_put_be16(&request, IFLA_GENEVE_PORT, tnl_cfg->dst_port);
+         break;
++    case OVS_VPORT_TYPE_GTPU:
++        nl_msg_put_flag(&request, IFLA_GTP_COLLECT_METADATA);
++        break;
+     case OVS_VPORT_TYPE_NETDEV:
+     case OVS_VPORT_TYPE_INTERNAL:
+     case OVS_VPORT_TYPE_LISP:
+     case OVS_VPORT_TYPE_STT:
+-    case OVS_VPORT_TYPE_GTPU:
+     case OVS_VPORT_TYPE_UNSPEC:
+     case __OVS_VPORT_TYPE_MAX:
+     default:
+@@ -373,8 +408,10 @@ dpif_netlink_rtnl_create(const struct netdev_tunnel_config *tnl_cfg,
+     nl_msg_end_nested(&request, linkinfo_off);
+ 
+     err = nl_transact(NETLINK_ROUTE, &request, NULL);
++    VLOG_WARN("tnll tarnsact %d", err);
+     if (!err && (type == OVS_VPORT_TYPE_GRE ||
+-                 type == OVS_VPORT_TYPE_IP6GRE)) {
++                 type == OVS_VPORT_TYPE_IP6GRE ||
++                 type == OVS_VPORT_TYPE_GTPU)) {
+         /* Work around a bug in kernel GRE driver, which ignores IFLA_MTU in
+          * RTM_NEWLINK, by setting the MTU again.  See
+          * https://bugzilla.redhat.com/show_bug.cgi?id=1488484.
+@@ -394,13 +431,13 @@ dpif_netlink_rtnl_create(const struct netdev_tunnel_config *tnl_cfg,
+ 
+ exit:
+     ofpbuf_uninit(&request);
+-
+     return err;
+ }
+ 
+ int
+ dpif_netlink_rtnl_port_create(struct netdev *netdev)
+ {
++    static struct vlog_rate_limit rl = VLOG_RATE_LIMIT_INIT(1, 5);
+     const struct netdev_tunnel_config *tnl_cfg;
+     char namebuf[NETDEV_VPORT_NAME_BUFSIZE];
+     enum ovs_vport_type type;
+@@ -412,11 +449,13 @@ dpif_netlink_rtnl_port_create(struct netdev *netdev)
+     type = netdev_to_ovs_vport_type(netdev_get_type(netdev));
+     tnl_cfg = netdev_get_tunnel_config(netdev);
+     if (!tnl_cfg) {
++        VLOG_WARN_RL(&rl, "could not find tnl config");
+         return EOPNOTSUPP;
+     }
+ 
+     kind = vport_type_to_kind(type, tnl_cfg);
+     if (!kind) {
++        VLOG_WARN_RL(&rl, "could not find tnl config");
+         return EOPNOTSUPP;
+     }
+ 
+@@ -429,12 +468,11 @@ dpif_netlink_rtnl_port_create(struct netdev *netdev)
+     if (err == EEXIST) {
+         err = dpif_netlink_rtnl_verify(tnl_cfg, type, name);
+         if (!err) {
++            VLOG_WARN_RL(&rl, "could not verify dev: %d", err);
+             return 0;
+         }
+         err = dpif_netlink_rtnl_destroy(name);
+         if (err) {
+-            static struct vlog_rate_limit rl = VLOG_RATE_LIMIT_INIT(1, 5);
+-
+             VLOG_WARN_RL(&rl, "RTNL device %s exists and cannot be "
+                          "deleted: %s", name, ovs_strerror(err));
+             return err;
+@@ -442,16 +480,15 @@ dpif_netlink_rtnl_port_create(struct netdev *netdev)
+         err = dpif_netlink_rtnl_create(tnl_cfg, name, type, kind, flags);
+     }
+     if (err) {
++        VLOG_WARN_RL(&rl, "could not create dev: %d", err);
+         return err;
+     }
+ 
+     err = dpif_netlink_rtnl_verify(tnl_cfg, type, name);
++    VLOG_WARN("dpif_netlink_rtnl_verify %d", err);
+     if (err) {
+         int err2 = dpif_netlink_rtnl_destroy(name);
+-
+         if (err2) {
+-            static struct vlog_rate_limit rl = VLOG_RATE_LIMIT_INIT(1, 5);
+-
+             VLOG_WARN_RL(&rl, "Failed to delete device %s during rtnl port "
+                          "creation: %s", name, ovs_strerror(err2));
+         }
+@@ -470,12 +507,12 @@ dpif_netlink_rtnl_port_destroy(const char *name, const char *type)
+     case OVS_VPORT_TYPE_ERSPAN:
+     case OVS_VPORT_TYPE_IP6ERSPAN:
+     case OVS_VPORT_TYPE_IP6GRE:
++    case OVS_VPORT_TYPE_GTPU:
+         return dpif_netlink_rtnl_destroy(name);
+     case OVS_VPORT_TYPE_NETDEV:
+     case OVS_VPORT_TYPE_INTERNAL:
+     case OVS_VPORT_TYPE_LISP:
+     case OVS_VPORT_TYPE_STT:
+-    case OVS_VPORT_TYPE_GTPU:
+     case OVS_VPORT_TYPE_UNSPEC:
+     case __OVS_VPORT_TYPE_MAX:
+     default:
+-- 
+2.27.0
+
