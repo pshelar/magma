@@ -1,7 +1,7 @@
-From 659ed675ce4469fea7a0ce5b0719a5f4fd7e1c56 Mon Sep 17 00:00:00 2001
+From d1f2a9cd99fd98a42a79c4ed59f1084e4f4a8e35 Mon Sep 17 00:00:00 2001
 From: Pravin B Shelar <pbshelar@fb.com>
 Date: Tue, 8 Dec 2020 16:43:16 -0800
-Subject: [PATCH net-next v2 1/2] openvswitch: Add support for GTP tunnel
+Subject: [PATCH net-next v3 1/2] openvswitch: Add support for GTP tunnel
  options.
 
 ---
@@ -22,7 +22,7 @@ index 8d16744edc31..463b0e53c86f 100644
  };
  
 diff --git a/net/openvswitch/flow_netlink.c b/net/openvswitch/flow_netlink.c
-index ec0689ddc635..e4f9b05318fc 100644
+index 4c5c2331e764..91eeba8e481d 100644
 --- a/net/openvswitch/flow_netlink.c
 +++ b/net/openvswitch/flow_netlink.c
 @@ -12,6 +12,7 @@
