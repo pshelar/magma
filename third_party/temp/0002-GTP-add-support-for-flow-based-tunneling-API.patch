@@ -1,7 +1,7 @@
-From d5af10e84a77cc80a444ff7acb19021ea48145a3 Mon Sep 17 00:00:00 2001
+From 21688269111814ab184b46b5f1d572adfd95ee42 Mon Sep 17 00:00:00 2001
 From: Pravin B Shelar <pbshelar@fb.com>
-Date: Sun, 13 Dec 2020 10:12:48 -0800
-Subject: [PATCH net-next v3 2/2] GTP: add support for flow based tunneling API
+Date: Sun, 13 Dec 2020 11:27:23 -0800
+Subject: [PATCH net-next v4 2/2] GTP: add support for flow based tunneling API
 
 Following patch add support for flow based tunneling API
 to send and recv GTP tunnel packet over tunnel metadata API.
@@ -18,7 +18,7 @@ Signed-off-by: Pravin B Shelar <pbshelar@fb.com>
  5 files changed, 399 insertions(+), 144 deletions(-)
 
 diff --git a/drivers/net/gtp.c b/drivers/net/gtp.c
-index 4c04e271f184..2ee33ba76ee3 100644
+index 4c04e271f184..fc9d843df736 100644
 --- a/drivers/net/gtp.c
 +++ b/drivers/net/gtp.c
 @@ -21,6 +21,7 @@
@@ -420,7 +420,7 @@ index 4c04e271f184..2ee33ba76ee3 100644
 +			netdev_dbg(dev, "missing tunnel info");
 +			return -ENOENT;
 +		}
-+		if (ntohs(info->key.tp_dst) != GTP1U_PORT) {
++		if (info->key.tp_dst && ntohs(info->key.tp_dst) != GTP1U_PORT) {
 +			netdev_dbg(dev, "unexpected GTP dst port: %d", ntohs(info->key.tp_dst));
 +			return -EOPNOTSUPP;
 +		}
