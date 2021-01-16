@@ -36,7 +36,7 @@ int create_sctp_sock(const InitReq &req)
 {
   int num_addrs;
   struct sockaddr *addrs;
-  int sd, err;
+  int sd;
 
   if (!req.use_ipv4() && !req.use_ipv6()) return -1;
 
@@ -54,13 +54,8 @@ int create_sctp_sock(const InitReq &req)
 
   if (convert_addrs(&req, &addrs, &num_addrs) < 0) goto fail;
 
-  err = sctp_bindx(sd, addrs, num_addrs, SCTP_BINDX_ADD_ADDR);
-  if (err < 0) {
-    MLOG_perror("sctp_bindx ADD error");
-    err = sctp_bindx(sd, addrs, num_addrs, SCTP_BINDX_REM_ADDR);
-    if (err < 0) {
-      MLOG_perror("sctp_bindx REN error");
-    }
+  if (sctp_bindx(sd, addrs, num_addrs, SCTP_BINDX_ADD_ADDR) < 0) {
+    MLOG_perror("sctp_bindx");
     goto fail;
   }
 
