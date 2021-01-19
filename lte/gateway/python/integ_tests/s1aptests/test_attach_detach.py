@@ -13,7 +13,7 @@ limitations under the License.
 
 import unittest
 import s1ap_types
-
+import time
 from integ_tests.s1aptests import s1ap_wrapper
 
 
@@ -45,8 +45,10 @@ class TestAttachDetach(unittest.TestCase):
 
             # Wait on EMM Information from MME
             self._s1ap_wrapper._s1_util.receive_emm_info()
+
             print("************************* Running UE detach for UE id ",
                   req.ue_id)
+            time.sleep(50)
             # Now detach the UE
             self._s1ap_wrapper.s1_util.detach(
                 req.ue_id, detach_type[i], wait_for_s1[i])
