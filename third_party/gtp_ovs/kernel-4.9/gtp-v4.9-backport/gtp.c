@@ -55,6 +55,13 @@ struct gtpu_ext_hdr {
         u8 type;
 };
 
+struct gtpu_ext_hdr_pdu_sc {
+	u8 len;
+	u8 pdu_type;
+	u8 qfi;
+        u8 next_type;
+};
+
 /* An active session for the subscriber. */
 struct pdp_ctx {
 	struct hlist_node	hlist_tid;
@@ -352,6 +359,7 @@ static int gtp1u_udp_encap_recv(struct gtp_dev *gtp, struct sk_buff *skb)
 			netdev_dbg(gtp->dev, "current hdr len %d next hdr type: %d\n", len, next_hdr);
 		}
 		netdev_dbg(gtp->dev, "pkt type: %x", *(u8*) (skb->data + hdrlen));
+		netdev_dbg(gtp->dev, "skb-len %d gtp len %d hdr len %d\n", skb->len, (int) ntohs(gtp1->length), hdrlen);
 	} else if (gtp1->flags & GTP1_F_MASK)
 		hdrlen += 4;
 
@@ -502,12 +510,25 @@ static inline void gtp0_push_header(struct sk_buff *skb, struct pdp_ctx *pctx)
 	gtp0->tid	= cpu_to_be64(pctx->u.v0.tid);
 }
 
+const struct gtpu_ext_hdr n_hdr = {
+	.type = 0x85,
+};
+
+const struct gtpu_ext_hdr_pdu_sc pdu_sc_hdr = {
+	.len = 1,
+	.pdu_type = 0x10,
+	.qfi = 5,
+        .next_type = 0,
+};
+
 static inline void gtp1_push_header(struct sk_buff *skb, __be32 tid)
 {
-	int payload_len = skb->len;
+	struct gtpu_ext_hdr *next_hdr;
+	struct gtpu_ext_hdr_pdu_sc *pdu_sc;
 	struct gtp1_header *gtp1;
+	int payload_len = skb->len + sizeof(*next_hdr) + sizeof(*pdu_sc);;
 
-	gtp1 = (struct gtp1_header *) skb_push(skb, sizeof(*gtp1));
+	gtp1 = (struct gtp1_header *) skb_push(skb, sizeof(*gtp1) + sizeof (*next_hdr) + sizeof (*pdu_sc));
 
 	/* Bits    8  7  6  5  4  3  2	1
 	 *	  +--+--+--+--+--+--+--+--+
@@ -515,7 +536,7 @@ static inline void gtp1_push_header(struct sk_buff *skb, __be32 tid)
 	 *	  +--+--+--+--+--+--+--+--+
 	 *	    0  0  1  1	1  0  0  0
 	 */
-	gtp1->flags	= 0x30; /* v1, GTP-non-prime. */
+	gtp1->flags	= 0x34; /* v1, GTP-non-prime. */
 	gtp1->type	= GTP_TPDU;
 	gtp1->length	= htons(payload_len);
 	gtp1->tid	= tid;
@@ -523,6 +544,10 @@ static inline void gtp1_push_header(struct sk_buff *skb, __be32 tid)
 	/* TODO: Suppport for extension header, sequence number and N-PDU.
 	 *	 Update the length field if any of them is available.
 	 */
+	next_hdr = (struct gtpu_ext_hdr *) (gtp1 + 1);
+	*next_hdr = n_hdr;
+	pdu_sc = (struct gtpu_ext_hdr_pdu_sc *) (next_hdr + 1);
+	*pdu_sc = pdu_sc_hdr;
 }
 
 struct gtp_pktinfo {
@@ -1665,7 +1690,7 @@ static int __init gtp_init(void)
 	if (err < 0)
 		goto unreg_genl_family;
 
-	pr_info("Flow-based GTP module loaded (pdp ctx size %zd bytes) : v8\n",
+	pr_info("Flow-based GTP module loaded (pdp ctx size %zd bytes) : v7h\n",
 		sizeof(struct pdp_ctx));
 	return 0;
 
