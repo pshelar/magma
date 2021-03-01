@@ -7,6 +7,7 @@ import socket
 import logging
 import traceback
 import time
+import pprint
 import subprocess
 from magma.pipelined.bridge_util import BridgeTools
 from magma.pipelined.qos.qos_tc_impl import TrafficClass
@@ -35,13 +36,12 @@ class tc_qos:
             return err
         return 0
 
-    def delete(self, iface: str, qid: str, max_bw: int, rate=None,
-               parent_qid: str = None, proto=PROTOCOL) -> int:
+    def delete(self, iface: str, qid: str, proto=PROTOCOL) -> int:
         err = self.del_filter(iface, qid, qid, proto)
         if err:
             return err
 
-        err = self.del_htb(iface, qid, max_bw, rate, parent_qid)
+        err = self.del_htb(iface, qid)
         if err:
             return err
 
@@ -63,19 +63,18 @@ class tc_qos:
         return 0
 
 
-    def del_htb(self, iface: str, qid: str, max_bw: int, rate=None,
-                 parent_qid: str = None) -> int:
+    def del_htb(self, iface: str, qid: str) -> int:
         try:
             if_index = self._get_if_index(iface)
             htb_queue = QUEUE_PREFIX + qid
 
-            err = self._ipr.tc("del-class", "htb", if_index, htb_queue, parent=parent_qid, rate=rate, ceil=max_bw, prio=1)
+            err = self._ipr.tc("del-class", "htb", if_index, htb_queue)
         except (ValueError, NetlinkError) as ex:
             LOG.error("del-htb  error error : %s", ex.code)
             return ex.code
         return 0
 
-    def create_filter(self, iface: str, mark: str, qid: str, proto: int) -> int:
+    def create_filter(self, iface: str, mark: str, qid: str, proto: int = PROTOCOL) -> int:
         try:
             if_index = self._get_if_index(iface)
 
@@ -114,6 +113,16 @@ class tc_qos:
 
         return if_index
 
+    def _print_classes(self, iface):
+        if_index = self._get_if_index(iface)
+
+        pprint.pprint(self._ipr.get_classes(if_index))
+
+    def _print_filters(self, iface):
+        if_index = self._get_if_index(iface)
+
+        pprint.pprint(self._ipr.get_filters(if_index))
+
 
 class TcSetypTest(unittest.TestCase):
     BRIDGE = 'testing_qos'
@@ -144,7 +153,7 @@ class TcSetypTest(unittest.TestCase):
             if len(tokens) > 10 and tokens[9] == qid:
                 found = True
 
-        self.assertTrue(found)
+        return found
 
     def test_basic(self):
         cls = self.__class__
@@ -156,8 +165,8 @@ class TcSetypTest(unittest.TestCase):
         parent_qid = '1:fffe'
 
         err1 = t1.create(iface, qid, max_bw, rate, parent_qid)
-        self.check_qid_in_tc(qid)
-        err = t1.delete(iface, qid, max_bw, rate, parent_qid)
+        self.assertTrue(self.check_qid_in_tc(qid))
+        err = t1.delete(iface, qid)
         self.assertEqual(err, 0)
         self.assertEqual(err1, 0)
 
@@ -173,7 +182,7 @@ class TcSetypTest(unittest.TestCase):
         parent_qid1 = '1:fffe'
 
         err1 = t1.create(iface1, qid1, max_bw, rate, parent_qid1)
-        self.check_qid_in_tc(qid1)
+        self.assertTrue(self.check_qid_in_tc(qid1))
 
         # Second queue
 
@@ -183,12 +192,14 @@ class TcSetypTest(unittest.TestCase):
         parent_qid2 = '1:' + qid1
 
         err1 = t1.create(iface1, qid2, max_bw, rate, parent_qid2)
-        self.check_qid_in_tc(qid2)
+        self.assertTrue(self.check_qid_in_tc(qid2))
+        # t1._print_classes(iface1)
+        # t1._print_filters(iface1)
 
-        err = t1.delete(iface1, qid2, max_bw, rate, parent_qid2)
+        err = t1.delete(iface1, qid2)
         self.assertEqual(err, 0)
 
-        err = t1.delete(iface1, qid1, max_bw, rate, parent_qid1)
+        err = t1.delete(iface1, qid1)
         self.assertEqual(err, 0)
         self.assertEqual(err1, 0)
 
