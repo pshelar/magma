@@ -20,7 +20,7 @@ from abc import ABC, abstractmethod
 
 class TcOpsBase(ABC):
     @abstractmethod
-    def create_htb(self, iface: str, qid: str, max_bw: int, rate=None,
+    def create_htb(self, iface: str, qid: str, max_bw: str, rate:str,
                     parent_qid: str = None) -> int:
         ...
 
