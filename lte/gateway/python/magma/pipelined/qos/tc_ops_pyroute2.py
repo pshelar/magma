@@ -35,15 +35,16 @@ class TcOpsPyRoute2(TcOpsBase):
         self._iface_if_index = {}
 
 
-    def create_htb(self, iface: str, qid: str, max_bw: int, rate=None,
+    def create_htb(self, iface: str, qid: str, max_bw: int, rate:str,
                     parent_qid: str = None) -> int:
 
         try:
+            LOG.debug("rate %s mac bw %s", rate, max_bw)
             if_index = self._get_if_index(iface)
             htb_queue = QUEUE_PREFIX + qid
             ret = self._ipr.tc("add-class", "htb", if_index,
                                htb_queue, parent=parent_qid,
-                               rate=rate, ceil=max_bw, prio=1)
+                               rate=str(rate).lower(), ceil=max_bw, prio=1)
             LOG.debug("Return: %s", ret)
         except (ValueError, NetlinkError) as ex:
             LOG.error("create-htb error : %s", ex.code)
