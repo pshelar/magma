@@ -18,6 +18,7 @@ from lte.protos.policydb_pb2 import FlowMatch
 from .types import QosInfo
 from .utils import IdManager
 from .tc_ops_cmd import run_cmd, TcOpsCmd, argSplit
+from .tc_ops_pyroute2 import TcOpsPyRoute2
 
 LOG = logging.getLogger('pipelined.qos.qos_tc_impl')
 # LOG.setLevel(logging.DEBUG)
@@ -34,15 +35,22 @@ class TrafficClass:
     rate limiting(traffic shaping) of user traffic.
     """
     tc_cmd = TcOpsCmd()
+    tc_netlink = TcOpsPyRoute2()
 
     @staticmethod
     def delete_class(intf: str, qid: int, skip_filter=False) -> int:
         qid_hex = hex(qid)
 
         if not skip_filter:
-            TrafficClass.tc_cmd.del_filter(intf, qid_hex, qid_hex)
+            err = TrafficClass.tc_netlink.del_filter(intf, qid_hex, qid_hex)
+            if err:
+                TrafficClass.tc_cmd.del_filter(intf, qid_hex, qid_hex)
 
-        return TrafficClass.tc_cmd.del_htb(intf, qid_hex)
+        err = TrafficClass.tc_netlink.del_htb(intf, qid_hex)
+        if err:
+            return TrafficClass.tc_cmd.del_htb(intf, qid_hex)
+        else:
+            return 0
 
     @staticmethod
     def create_class(intf: str, qid: int, max_bw: int, rate=None,
@@ -61,12 +69,18 @@ class TrafficClass:
 
         qid_hex = hex(qid)
         parent_qid_hex = '1:' + hex(parent_qid)
-        err = TrafficClass.tc_cmd.create_htb(intf, qid_hex, max_bw, rate, parent_qid_hex)
+        err = TrafficClass.tc_netlink.create_htb(intf, qid_hex, max_bw, rate, parent_qid_hex)
+        if err:
+            err = TrafficClass.tc_cmd.create_htb(intf, qid_hex, max_bw, rate, parent_qid_hex)
         if err < 0 or skip_filter:
             return err
 
         # add filter
-        return TrafficClass.tc_cmd.create_filter(intf, qid_hex, qid_hex)
+        err = TrafficClass.tc_netlink.create_filter(intf, qid_hex, qid_hex)
+        if err:
+            return TrafficClass.tc_cmd.create_filter(intf, qid_hex, qid_hex)
+        else:
+            return 0
 
     @staticmethod
     def init_qdisc(intf: str, show_error=False) -> int:
