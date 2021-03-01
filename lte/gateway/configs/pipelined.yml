@@ -27,6 +27,7 @@
 setup_type: LTE
 
 # log_level is set in mconfig. it can be overridden here
+log_level: DEBUG
 
 # Enable the services in PipelineD. Tables will be assigned to the services in
 # the same order as the list. Cloud managed services will be initialized
