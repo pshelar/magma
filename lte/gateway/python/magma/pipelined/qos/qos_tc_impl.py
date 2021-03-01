@@ -70,10 +70,12 @@ class TrafficClass:
 
     @staticmethod
     def init_qdisc(intf: str, show_error=False, enable_pyroute2=False) -> int:
-        if enable_pyroute2:
-            TrafficClass.tc_ops = TcOpsPyRoute2()
-        else:
-            TrafficClass.tc_ops = TcOpsCmd()
+        # TODO: Convert this class into an object.
+        if TrafficClass.tc_ops is None:
+            if enable_pyroute2:
+                TrafficClass.tc_ops = TcOpsPyRoute2()
+            else:
+                TrafficClass.tc_ops = TcOpsCmd()
 
         cmd_list = []
         speed = DEFAULT_INTF_SPEED
