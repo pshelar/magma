@@ -61,6 +61,7 @@ class TcSetypTest(unittest.TestCase):
         err1 = t1.create(iface, qid, max_bw, rate, parent_qid)
         self.assertTrue(self.check_qid_in_tc(qid))
         err = t1.delete(iface, qid)
+        self.assertFalse(self.check_qid_in_tc(qid))
         self.assertEqual(err, 0)
         self.assertEqual(err1, 0)
 
@@ -92,8 +93,11 @@ class TcSetypTest(unittest.TestCase):
 
         err = t1.delete(iface1, qid2)
         self.assertEqual(err, 0)
+        self.assertFalse(self.check_qid_in_tc(qid2))
 
         err = t1.delete(iface1, qid1)
+        self.assertFalse(self.check_qid_in_tc(qid1))
+
         self.assertEqual(err, 0)
         self.assertEqual(err1, 0)
 
