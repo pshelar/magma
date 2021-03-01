@@ -51,6 +51,9 @@ def run_cmd(cmd_list, show_error=True) -> int:
 
 
 class TcOpsCmd(TcOpsBase):
+    def __init__(self):
+        LOG.info("initialized")
+
     def create_htb(self, iface: str, qid: str, max_bw: str, rate:str,
                    parent_qid: str = None) -> int:
         tc_cmd = "tc class add dev {intf} parent {parent_qid} "
