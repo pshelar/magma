@@ -33,7 +33,7 @@ class TcOpsPyRoute2(TcOpsBase):
     def __init__(self):
         self._ipr = IPRoute()
         self._iface_if_index = {}
-
+        LOG.info("qos: using PyRoute2")
 
     def create_htb(self, iface: str, qid: str, max_bw: int, rate:str,
                     parent_qid: str = None) -> int:
