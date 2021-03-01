@@ -44,6 +44,7 @@ class TcSetypTest(unittest.TestCase):
             ln = ln.strip()
             if not ln:
                 continue
+            #print(ln)
             tokens = ln.split(" ")
 
             if len(tokens) > 10 and tokens[9] == qid:
@@ -63,6 +64,22 @@ class TcSetypTest(unittest.TestCase):
         err1 = t1.create(iface, qid, max_bw, rate, parent_qid)
         self.assertTrue(self.check_qid_in_tc(qid))
         err = t1.delete(iface, qid)
+        self.assertFalse(self.check_qid_in_tc(qid))
+        self.assertEqual(err, 0)
+        self.assertEqual(err1, 0)
+
+    def test_basic6(self):
+        cls = self.__class__
+        t1 = TcOpsPyRoute2()
+        iface = cls.IFACE
+        qid = "0xae"
+        max_bw = 10000
+        rate = 1000
+        parent_qid = '1:fffe'
+
+        err1 = t1.create(iface, qid, max_bw, rate, parent_qid, proto=0x86DD)
+        self.assertTrue(self.check_qid_in_tc(qid))
+        err = t1.delete(iface, qid, proto=0x86DD)
         self.assertFalse(self.check_qid_in_tc(qid))
         self.assertEqual(err, 0)
         self.assertEqual(err1, 0)
@@ -102,7 +119,6 @@ class TcSetypTest(unittest.TestCase):
 
         self.assertEqual(err, 0)
         self.assertEqual(err1, 0)
-
 
     def test_mix1(self):
         cls = self.__class__
@@ -151,6 +167,7 @@ class TcSetypTest(unittest.TestCase):
         self.assertFalse(self.check_qid_in_tc(qid))
         self.assertEqual(err, 0)
         self.assertEqual(err1, 0)
+
 
 if __name__ == "__main__":
     unittest.main()

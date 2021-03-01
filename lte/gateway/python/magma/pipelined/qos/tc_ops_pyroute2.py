@@ -23,7 +23,7 @@ import pprint
 LOG = logging.getLogger('pipelined.qos.tc_pyroute2')
 
 QUEUE_PREFIX = '1:'
-PROTOCOL = 3
+PROTOCOL = 0x0800
 
 
 class TcOpsPyRoute2(TcOpsBase):
