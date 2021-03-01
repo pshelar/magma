@@ -69,7 +69,7 @@ class TcOpsPyRoute2(TcOpsBase):
             class_id = int(0x10000) | int(qid, 16)
             self._ipr.tc("add-filter", "fw", if_index, int(mark, 16),
                          parent=0x10000,
-                         prio=10,
+                         prio=1,
                          protocol=proto,
                         classid=class_id)
         except (ValueError, NetlinkError) as ex:
@@ -85,7 +85,7 @@ class TcOpsPyRoute2(TcOpsBase):
 
             self._ipr.tc("del-filter", "fw", if_index, int(mark, 16),
                          parent=0x10000,
-                         prio=10,
+                         prio=1,
                          protocol=proto,
                          classid=class_id)
         except (ValueError, NetlinkError) as ex:

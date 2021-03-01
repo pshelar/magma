@@ -12,6 +12,8 @@ import subprocess
 from magma.pipelined.bridge_util import BridgeTools
 from magma.pipelined.qos.qos_tc_impl import TrafficClass
 from magma.pipelined.qos.tc_ops_pyroute2 import TcOpsPyRoute2
+from magma.pipelined.qos.tc_ops_cmd import TcOpsCmd
+
 LOG = logging.getLogger('pipelined.qos.tc_rtnl')
 
 QUEUE_PREFIX = '1:'
@@ -101,6 +103,28 @@ class TcSetypTest(unittest.TestCase):
         self.assertEqual(err, 0)
         self.assertEqual(err1, 0)
 
+
+    def test_mix1(self):
+        cls = self.__class__
+        t1 = TcOpsPyRoute2()
+        t2 = TcOpsCmd()
+        iface = cls.IFACE
+        qid = "0xae"
+        max_bw = 10000
+        rate = 1000
+        parent_qid = '1:fffe'
+
+        err1 = t1.create(iface, qid, max_bw, rate, parent_qid)
+        self.assertTrue(self.check_qid_in_tc(qid))
+
+        err = t2.del_filter(iface, qid, qid)
+        self.assertEqual(err, 0)
+        err = t2.del_htb(iface, qid)
+        self.assertEqual(err, 0)
+
+        self.assertFalse(self.check_qid_in_tc(qid))
+        self.assertEqual(err, 0)
+        self.assertEqual(err1, 0)
 
 if __name__ == "__main__":
     unittest.main()

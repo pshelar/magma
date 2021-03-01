@@ -46,7 +46,7 @@ def run_cmd(cmd_list, show_error=True) -> int:
             except subprocess.CalledProcessError as e:
                 err = -1
                 if show_error:
-                    LOG.error("%s error running %s ", str(e.returncode), cmd)
+                    LOG.error("error: {} running: {} ".format(str(e.returncode), cmd))
     return err
 
 
