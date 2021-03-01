@@ -68,13 +68,13 @@ class TcOpsCmd(TcOpsBase):
         return run_cmd([del_cmd], True)
 
     def create_filter(self, iface: str, mark: str, qid: str, proto: int = 3) -> int:
-        filter_cmd = "tc filter add dev {intf} protocol all parent 1: prio 1 "
+        filter_cmd = "tc filter add dev {intf} protocol ip parent 1: prio 1 "
         filter_cmd += "handle {qid} fw flowid 1:{qid}"
         filter_cmd = filter_cmd.format(intf=iface, qid=qid)
         return run_cmd([filter_cmd], True)
 
     def del_filter(self, iface: str, mark: str, qid: str, proto: int = 3) -> int:
-        filter_cmd = "tc filter del dev {intf} protocol all parent 1: prio 1 "
+        filter_cmd = "tc filter del dev {intf} protocol ip parent 1: prio 1 "
         filter_cmd += "handle {qid} fw flowid 1:{qid}"
         filter_cmd = filter_cmd.format(intf=iface, qid=qid)
         return run_cmd([filter_cmd], True)
