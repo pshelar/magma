@@ -126,5 +126,31 @@ class TcSetypTest(unittest.TestCase):
         self.assertEqual(err, 0)
         self.assertEqual(err1, 0)
 
+    def test_mix2(self):
+        cls = self.__class__
+        t1 = TcOpsPyRoute2()
+        t2 = TcOpsCmd()
+        iface = cls.IFACE
+        qid = "0xae"
+        max_bw = 10000
+        rate = 1000
+        parent_qid = '1:fffe'
+
+        err1 = t2.create_htb(iface, qid, max_bw, rate, parent_qid)
+        self.assertEqual(err1, 0)
+        err1 = t2.create_filter(iface, qid, qid)
+        self.assertEqual(err1, 0)
+
+        self.assertTrue(self.check_qid_in_tc(qid))
+
+        err = t1.del_filter(iface, qid, qid)
+        self.assertEqual(err, 0)
+        err = t1.del_htb(iface, qid)
+        self.assertEqual(err, 0)
+
+        self.assertFalse(self.check_qid_in_tc(qid))
+        self.assertEqual(err, 0)
+        self.assertEqual(err1, 0)
+
 if __name__ == "__main__":
     unittest.main()

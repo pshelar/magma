@@ -77,7 +77,7 @@ class TcOpsPyRoute2(TcOpsBase):
             return ex.code
         return 0
 
-    def del_filter(self, iface: str, mark: str, qid: str, proto: int) -> int:
+    def del_filter(self, iface: str, mark: str, qid: str, proto: int = PROTOCOL) -> int:
         try:
             if_index = self._get_if_index(iface)
 
@@ -92,7 +92,6 @@ class TcOpsPyRoute2(TcOpsBase):
             LOG.error("del-filter error : %s", ex.code)
             return ex.code
         return 0
-
 
     def create(self, iface: str, qid: str, max_bw: int, rate=None,
                parent_qid: str = None, proto=PROTOCOL) -> int:
