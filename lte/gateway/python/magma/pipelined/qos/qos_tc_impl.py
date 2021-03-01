@@ -42,7 +42,7 @@ class TrafficClass:
         if not skip_filter:
             TrafficClass.tc_cmd.del_filter(intf, qid_hex, qid_hex)
 
-        TrafficClass.tc_cmd.del_htb(intf, qid_hex)
+        return TrafficClass.tc_cmd.del_htb(intf, qid_hex)
 
     @staticmethod
     def create_class(intf: str, qid: int, max_bw: int, rate=None,
