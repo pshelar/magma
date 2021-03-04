@@ -66,6 +66,12 @@ class GTPApplication : public Application {
       uint32_t port_number);
 
   /*
+   * Add downlink tunnel flow for S8
+   */
+  void add_uplink_s8_tunnel_flow(
+    const AddGTPTunnelEvent& ev, const OpenflowMessenger& messenger);
+
+  /*
    * Remove uplink tunnel flow on disconnect
    * @param ev - DeleteGTPTunnelEvent containing ue ip, and inbound tei
    */
@@ -167,6 +173,14 @@ class GTPApplication : public Application {
   void add_downlink_tunnel_flow_action(
       const AddGTPTunnelEvent& ev, const OpenflowMessenger& messenger,
       of13::FlowMod downlink_fm);
+
+  void add_tunnel_flow_action(
+    uint32_t tei, std::string ue_imsi, struct in_addr remote_ip,
+    uint32_t egress_gtp_port,
+    fluid_base::OFConnection* connection,
+    const OpenflowMessenger& messenger,
+    of13::FlowMod downlink_fm,
+    std::string flow_type);
 
   void add_downlink_tunnel_flow_ipv4(
       const AddGTPTunnelEvent& ev, const OpenflowMessenger& messenger,
