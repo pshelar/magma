@@ -313,6 +313,7 @@ class RedisFlatDict(MutableMapping[str, T]):
             raise KeyError(composite_key)
         return deleted_count
 
+    # pylint: disable=arguments-differ
     def get(self, key: str) -> Optional[T]:
         """Get ``d[key:type]`` from dictionary.
         Returns None if *key:type* is not in the map

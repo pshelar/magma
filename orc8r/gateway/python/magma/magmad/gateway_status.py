@@ -19,6 +19,7 @@ import platform
 import time
 import netifaces
 from typing import NamedTuple, List, Any, Dict, Optional, Tuple
+# pylint: disable=no-name-in-module
 from collections import KeysView
 from magma.common.misc_utils import (
     get_ip_from_if,
