@@ -276,13 +276,14 @@
   when: full_provision
 
 - name: Preload the GTP module
-  ignore_errors: yes
+  when: preburn and ansible_distribution == "Debian"
   modprobe:
     name: gtp
     state: present
   when: full_provision
 
 - name: Persist preloading the GTP module on boot
+  when: preburn and ansible_distribution == "Debian"
   copy:
     src: magma_modules_load
     dest: /etc/modules-load.d/magma.conf
@@ -352,9 +353,17 @@
     state: restarted
   when: full_provision
 
+- name: Reset interface name to eth
+  ansible.builtin.command: ip a sh eth0
+  when: result is failed and ansible_distribution == "Ubuntu"
+  shell: sed -i 's/enp0s3/eth0/g' /etc/netplan/50-cloud-init.yaml
+  shell: sudo sed -i 's/GRUB_CMDLINE_LINUX=""/GRUB_CMDLINE_LINUX="net.ifnames=0 biosdevname=0"/g' /etc/default/grub
+  shell: sudo grub-mkconfig -o /boot/grub/grub.cfg
+  reboot:
+    reboot_timeout: 3600
+
 - name: Bring up ovs bridge
-  ignore_errors: yes
-  shell: ifup --allow=ovs {{ item }}
+  shell: ifup -i /etc/network/interfaces.d/gtp {{ item }}
   with_items:
     - gtp_br0
     - uplink_br0
