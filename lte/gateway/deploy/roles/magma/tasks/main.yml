@@ -266,12 +266,14 @@
     pkg:
       - python3-openvswitch
       - nlohmann-json3-dev
+      # managing gtp interface
+      - ifupdown
 
 - name: Copy the gtp interface initialization definition
   copy:
     src: magma_ifaces_gtp
     dest: /etc/network/interfaces.d/gtp
-  when: full_provision and ansible_distribution == "Debian"
+  when: full_provision
 
 - name: Preload the GTP module
   ignore_errors: yes
