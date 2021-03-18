@@ -319,4 +319,3 @@
   patch:
     src: patches/multipath-conf.patch
     dest: /etc/multipath.conf
-  notify: restart multipathd.service systemd
