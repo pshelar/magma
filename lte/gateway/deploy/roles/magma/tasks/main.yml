@@ -373,7 +373,5 @@
 
 - name: Patch python aio lib
   patch:
-    src: "{{ MAGMA_ROOT }}/{{ PYTHON_PATCH_DIR }}/aioeventlet.py38.patch"
+    src: patches/aioeventlet.py38.patch
     dest: /usr/local/lib/python3.8/dist-packages/aioeventlet.py
-  with_items:
-    - "{{ all_vars.patches }}"
