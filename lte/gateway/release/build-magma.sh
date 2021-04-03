@@ -144,7 +144,7 @@ OAI_DEPS=(
     "libasan3"
     "libconfig9"
     "oai-asn1c"
-    "oai-freediameter >= 1.2.0-1"
+    "oai-freediameter >= 0.0.2"
     "oai-gnutls >= 3.1.23"
     "oai-nettle >= 1.0.1"
     "prometheus-cpp-dev >= 1.0.2"
@@ -153,7 +153,7 @@ OAI_DEPS=(
     "libczmq-dev >= 4.0.2-7"
     )
 
-if [[ "$OS"  == "debian" ]]; then
+if grep -q stretch /etc/os-release; then
     OAI_DEPS+=("oai-gtp >= 4.9-9")
 fi
 
@@ -173,7 +173,6 @@ else
         "libopenvswitch >= 2.14"
         "openvswitch-switch >= 2.14"
         "openvswitch-common >= 2.14"
-        "python3-openvswitch >= 2.14"
         "openvswitch-datapath-dkms >= 2.14"
         )
 fi
@@ -413,11 +412,14 @@ $(glob_files "${PY_TMP_BUILD}/usr/bin/*" /usr/local/bin/) \
 
 eval "$BUILDCMD"
 
-cd "${MAGMA_ROOT}"
-OVS_DIFF_LINES=$(git diff master -- third_party/gtp_ovs/ lte/gateway/release/build-ovs.sh | wc -l | tr -dc 0-9)
+if grep -q stretch /etc/os-release; then
+  cd "${MAGMA_ROOT}"
+  OVS_DIFF_LINES=$(git diff master -- third_party/gtp_ovs/ lte/gateway/release/build-ovs.sh | wc -l | tr -dc 0-9)
 
-# if env var FORCE_OVS_BUILD is non-empty or there is are changes to openvswitch-related files build openvswitch
-if [[ x"${FORCE_OVS_BUILD}" != "x" || x"${OVS_DIFF_LINES}" != x0 ]]; then
-    cd "${PWD}"
-    "${SCRIPT_DIR}"/build-ovs.sh "${OUTPUT_DIR}"
+  # if env var FORCE_OVS_BUILD is non-empty or there is are changes to openvswitch-related files build openvswitch
+  if [[ x"${FORCE_OVS_BUILD}" != "x" || x"${OVS_DIFF_LINES}" != x0 ]]; then
+      cd "${PWD}"
+      "${SCRIPT_DIR}"/build-ovs.sh "${OUTPUT_DIR}"
+  fi
 fi
+
