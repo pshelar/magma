@@ -115,7 +115,9 @@ setup(
         'hpack>=3.0',
         'freezegun>=0.3.15',
         'pycryptodome>=3.9.9',
-        'pyroute2==0.5.14'
+        'pyroute2==0.5.14',
+        'aiohttp==3.6.2',
+        'json-pointer>=0.1.2'
     ],
     extras_require={
         'dev': [
