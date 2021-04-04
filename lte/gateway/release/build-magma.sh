@@ -109,7 +109,7 @@ SCTPD_PKGNAME=magma-sctpd
 # here.
 MAGMA_DEPS=(
     "grpc-dev >= 1.15.0"
-    "libprotobuf10 >= 3.0.0"
+    "libprotobuf17 >= 3.0.0"
     "lighttpd >= 1.4.45"
     "libxslt1.1"
     "nghttp2-proxy >= 1.18.1"
@@ -124,7 +124,6 @@ MAGMA_DEPS=(
     "libsystemd-dev"
     "libyaml-cpp-dev" # install yaml parser
     "libgoogle-glog-dev"
-    "nlohmann-json-dev" # c++ json parser
     "python-redis"
     "magma-cpp-redis"
     "libfolly-dev" # required for C++ services
@@ -139,9 +138,14 @@ MAGMA_DEPS=(
     "getenvoy-envoy" # for envoy dep
     )
 
+if grep -q stretch /etc/os-release; then
+    MAGMA_DEPS+=("nlohmann-json-dev")
+else
+    MAGMA_DEPS+=("nlohmann-json3-dev")
+fi
+
 # OAI runtime dependencies
 OAI_DEPS=(
-    "libasan3"
     "libconfig9"
     "oai-asn1c"
     "oai-freediameter >= 0.0.2"
@@ -154,7 +158,10 @@ OAI_DEPS=(
     )
 
 if grep -q stretch /etc/os-release; then
+    OAI_DEPS+=("libasan3")
     OAI_DEPS+=("oai-gtp >= 4.9-9")
+else
+    OAI_DEPS+=("libasan5")
 fi
 
 # OVS runtime dependencies
