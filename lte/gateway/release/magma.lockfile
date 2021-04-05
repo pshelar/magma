@@ -863,7 +863,7 @@
           "version": "3.7.0"
         },
         "pytz": {
-          "root": false,
+          "root": true,
           "source": "apt",
           "sysdep": "python3-pytz",
           "version": "2020.1"
