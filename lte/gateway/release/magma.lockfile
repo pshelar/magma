@@ -742,12 +742,6 @@
           "sysdep": "python3-jsonpickle",
           "version": "1.2"
         },
-        "jsonpointer": {
-          "root": true,
-          "source": "pypi",
-          "sysdep": "python3-jsonpointer",
-          "version": "2.0"
-        },
         "jsonref": {
           "root": false,
           "source": "apt",
@@ -1055,9 +1049,6 @@
         },
         "jsonpickle": {
           "version": "1.2"
-        },
-        "jsonpointer": {
-          "version": "2.0"
         },
         "jsonschema": {
           "version": "3.1.0"
