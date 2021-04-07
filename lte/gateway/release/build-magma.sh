@@ -294,7 +294,7 @@ FULL_VERSION=${VERSION}-$(date +%s)-${COMMIT_HASH}
 # adjust mtime of a setup.py to force update
 # (e.g. `touch ${PY_LTE}/setup.py`)
 pushd "${RELEASE_DIR}" || exit 1
-make -e magma.lockfile
+make os_release=$OS -e magma.lockfile
 popd
 
 cd ${PY_ORC8R}
