@@ -92,7 +92,7 @@ setup(
         # lxml required by spyne.
         'lxml==4.6.2',
         'ryu>=4.30',
-        'spyne>=2.13.16',
+        'spyne>=2.13.15',
         'scapy==2.4.4',
         'flask>=1.0.2',
         'sentry_sdk>=1.0.0',
