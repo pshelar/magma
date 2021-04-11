@@ -774,7 +774,7 @@
         },
         "multidict": {
           "root": false,
-          "source": "pypi",
+          "source": "apt",
           "sysdep": "python3-multidict",
           "version": "4.7.6"
         },
