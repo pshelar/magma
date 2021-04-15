@@ -12,7 +12,7 @@
 ################################################################################
 
 magma_pkgrepo_proto: http
-magma_pkgrepo_host: https://facebookconnectivity.jfrog.io
+magma_pkgrepo_host: facebookconnectivity.jfrog.io
 magma_pkgrepo_path: "artifactory/list/dev-focal/"
 magma_pkgrepo_dist: focal
 magma_pkgrepo_component: main
