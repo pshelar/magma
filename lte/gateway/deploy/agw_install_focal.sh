@@ -20,9 +20,9 @@ if [ "$WHOAMI" != "root" ]; then
   exit 1
 fi
 
-wget https://raw.githubusercontent.com/magma/magma/"$MAGMA_VERSION"/lte/gateway/deploy/agw_pre_check.sh
-if [[ -f ./agw_pre_check.sh ]]; then
-  chmod 644 agw_pre_check.sh && bash agw_pre_check.sh
+wget https://raw.githubusercontent.com/magma/magma/"$MAGMA_VERSION"/lte/gateway/deploy/agw_pre_check_focal.sh
+if [[ -f ./agw_pre_check_focal.sh ]]; then
+  chmod 644 agw_pre_check_focal.sh && bash agw_pre_check_focal.sh
   while true; do
       read -p "Do you accept those modifications and want to proceed with magma installation?(y/n)" yn
       case $yn in
@@ -32,13 +32,13 @@ if [[ -f ./agw_pre_check.sh ]]; then
       esac
   done
 else
-  echo "agw_precheck.sh is not available in your version"
+  echo "agw_pre_check_focal.sh is not available in your version"
 fi
 
 
-echo "Checking if Debian is installed"
-if ! grep -q 'Debian' /etc/issue; then
-  echo "Debian is not installed"
+echo "Checking if Ubuntu is installed"
+if ! grep -q 'Ubuntu' /etc/issue; then
+  echo "Ubuntu is not installed"
   exit 1
 fi
 
@@ -55,8 +55,12 @@ INTERFACES=$(ip -br a)
 if [[ $1 != "$CLOUD_INSTALL" ]] && ( [[ ! $INTERFACES == *'eth0'*  ]] || [[ ! $INTERFACES == *'eth1'* ]] || ! grep -q 'GRUB_CMDLINE_LINUX="net.ifnames=0 biosdevname=0"' /etc/default/grub); then
   # changing intefaces name
   sed -i 's/GRUB_CMDLINE_LINUX=""/GRUB_CMDLINE_LINUX="net.ifnames=0 biosdevname=0"/g' /etc/default/grub
+  sed -i 's/enp0s3/eth0/g' /etc/netplan/50-cloud-init.yaml
   # changing interface name
   grub-mkconfig -o /boot/grub/grub.cfg
+
+  # interface config
+  apt install ifupdown
   echo "auto eth0
   iface eth0 inet dhcp" > /etc/network/interfaces.d/eth0
   # configuring eth1
@@ -64,6 +68,15 @@ if [[ $1 != "$CLOUD_INSTALL" ]] && ( [[ ! $INTERFACES == *'eth0'*  ]] || [[ ! $I
   iface eth1 inet static
   address 10.0.2.1
   netmask 255.255.255.0" > /etc/network/interfaces.d/eth1
+  # name server config
+  ln -sf /var/run/systemd/resolve/resolv.conf /etc/resolv.conf
+
+  # get rid of netplan
+  systemctl unmask networking
+  systemctl enable networking
+
+  apt-get --assume-yes purge nplan netplan.i
+
   # Setting REBOOT flag to 1 because we need to reload new interface and network services.
   NEED_REBOOT=1
 else
@@ -72,23 +85,6 @@ else
     echo "Network not ready yet"
     sleep 1
   done
-fi
-
-echo "Checking if the right kernel version is installed (4.9.0-9-amd64)"
-if [ "$KVERS" != "4.9.0-9-amd64" ]; then
-  # Adding the snapshot to retrieve 4.9.0-9-amd64
-  if ! grep -q "deb http://snapshot.debian.org/archive/debian/20190801T025637Z" /etc/apt/sources.list; then
-    echo "deb http://snapshot.debian.org/archive/debian/20190801T025637Z stretch main non-free contrib" >> /etc/apt/sources.list
-  fi
-  apt update
-  # Installing prerequesites, Kvers, headers
-  apt install -y python-minimal aptitude linux-image-4.9.0-9-amd64 linux-headers-4.9.0-9-amd64
-  # Removing dev repository snapshot from source.list
-  sed -i '/20190801T025637Z/d' /etc/apt/sources.list
-  # Removing incompatible Kernel version
-  DEBIAN_FRONTEND=noninteractive apt remove -y linux-image-"$KVERS"
-  # Setting REBOOT flag to 1 because we need to boot with the right Kernel version
-  NEED_REBOOT=1
 fi
 
 # configure environment variable defaults needed for ansible
