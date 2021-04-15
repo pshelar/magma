@@ -12,7 +12,6 @@
 
 # Check for system changes before magma deploy
 # Setting up env variable, user and project path
-KVERS=$(uname -r)
 MAGMA_USER="magma"
 
 echo "- Check if Ubuntu is installed"

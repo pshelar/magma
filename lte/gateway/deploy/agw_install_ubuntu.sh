@@ -18,7 +18,6 @@ DEPLOY_PATH="/home/$MAGMA_USER/magma/lte/gateway/deploy"
 SUCCESS_MESSAGE="ok"
 NEED_REBOOT=0
 WHOAMI=$(whoami)
-KVERS=$(uname -r)
 MAGMA_VERSION="${MAGMA_VERSION:-v1.5}"
 CLOUD_INSTALL="cloud"
 GIT_URL="${GIT_URL:-https://github.com/magma/magma.git}"
@@ -34,7 +33,7 @@ wget https://raw.githubusercontent.com/magma/magma/"$MAGMA_VERSION"/lte/gateway/
 if [[ -f ./agw_pre_check_ubuntu.sh ]]; then
   chmod 644 agw_pre_check_ubuntu.sh && bash agw_pre_check_ubuntu.sh
   while true; do
-      read -p "Do you accept those modifications and want to proceed with magma installation?(y/n)" yn
+      read -r "Do you accept those modifications and want to proceed with magma installation?(y/n)" yn
       case $yn in
           [Yy]* ) break;;
           [Nn]* ) exit;;
@@ -149,7 +148,7 @@ if [ "$MAGMA_INSTALLED" != "$SUCCESS_MESSAGE" ]; then
   pip3 install ansible
 
   git clone "${GIT_URL}" /home/$MAGMA_USER/magma
-  cd /home/$MAGMA_USER/magma
+  cd /home/$MAGMA_USER/magma || exit
   git checkout "$MAGMA_VERSION"
 
   echo "Generating localhost hostfile for Ansible"
