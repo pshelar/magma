@@ -2,13 +2,13 @@
 # Setting up env variable, user and project path
 MAGMA_USER="magma"
 AGW_INSTALL_CONFIG="/etc/systemd/system/multi-user.target.wants/agw_installation.service"
-AGW_SCRIPT_PATH="/root/agw_install.sh"
+AGW_SCRIPT_PATH="/root/agw_install_focal.sh"
 DEPLOY_PATH="/home/$MAGMA_USER/magma/lte/gateway/deploy"
 SUCCESS_MESSAGE="ok"
 NEED_REBOOT=0
 WHOAMI=$(whoami)
 KVERS=$(uname -r)
-MAGMA_VERSION="${MAGMA_VERSION:-v1.4}"
+MAGMA_VERSION="${MAGMA_VERSION:-v1.5}"
 CLOUD_INSTALL="cloud"
 GIT_URL="${GIT_URL:-https://github.com/magma/magma.git}"
 
