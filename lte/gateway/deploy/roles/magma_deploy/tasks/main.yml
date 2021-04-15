@@ -18,35 +18,35 @@
 - name: Configuring private package manager.
   copy:
     content: >
-      deb {{ ovs_pkgrepo_proto }}://{{ ovs_pkgrepo_host }}{{ ovs_pkgrepo_path}}
-      {{ ovs_pkgrepo_dist }} {{ ovs_pkgrepo_component }}
-    dest: /etc/apt/sources.list.d/{{ ovs_pkgrepo_name }}.list
+      deb {{ magma_pkgrepo_proto }}://{{ magma_pkgrepo_host }}{{ magma_pkgrepo_path}}
+      {{ magma_pkgrepo_dist }} {{ magma_pkgrepo_component }}
+    dest: /etc/apt/sources.list.d/{{ magma_pkgrepo_name }}.list
   become: yes
 
 - name: Add unvalidated Apt signing key.
-  when: ovs_pkgrepo_key_fingerprint == ""
+  when: magma_pkgrepo_key_fingerprint == ""
   become: yes
   block:
     - name: Download key
       apt_key:
-        url: "{{ ovs_pkgrepo_key }}"
+        url: "{{ magma_pkgrepo_key }}"
         state: present
         validate_certs: no
     - name: Ignore server ssl cert
       copy:
         dest: /etc/apt/apt.conf.d/99insecurehttpsrepo
         content: |
-          Acquire::https::{{ ovs_pkgrepo_host }} {
+          Acquire::https::{{ magma_pkgrepo_host }} {
           Verify-Peer "false";
           Verify-Host "false";
           };
 
 - name: Add validated Apt signing key.
-  when: ovs_pkgrepo_key_fingerprint != ""
+  when: magma_pkgrepo_key_fingerprint != ""
   become: yes
   apt_key:
-    url: "{{ ovs_pkgrepo_key }}"
-    id: "{{ ovs_pkgrepo_key_fingerprint }}"
+    url: "{{ magma_pkgrepo_key }}"
+    id: "{{ magma_pkgrepo_key_fingerprint }}"
     state: present
 
 - name: Update and upgrade apt packages
