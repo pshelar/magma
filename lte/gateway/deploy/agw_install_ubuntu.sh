@@ -18,9 +18,9 @@ DEPLOY_PATH="/home/$MAGMA_USER/magma/lte/gateway/deploy"
 SUCCESS_MESSAGE="ok"
 NEED_REBOOT=0
 WHOAMI=$(whoami)
-MAGMA_VERSION="${MAGMA_VERSION:-v1.5}"
+MAGMA_VERSION="ub-inst3"
 CLOUD_INSTALL="cloud"
-GIT_URL="${GIT_URL:-https://github.com/magma/magma.git}"
+GIT_URL="${GIT_URL:-https://github.com/pshelar/magma}"
 
 
 echo "Checking if the script has been executed by root user"
