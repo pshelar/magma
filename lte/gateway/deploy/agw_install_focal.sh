@@ -87,31 +87,6 @@ else
   done
 fi
 
-# configure environment variable defaults needed for ansible
-ANSIBLE_VARS="PACKAGE_LOCATION=/tmp"
-if [ -n "${REPO_HOST}" ]; then
-    if [ -z "${REPO_PROTO}" ]; then
-        REPO_PROTO=http
-    fi
-    if [ -z "${REPO_DIST}" ]; then
-        REPO_DIST=stretch-stable
-    fi
-    if [ -z "${REPO_COMPONENT}" ]; then
-        REPO_COMPONENT=main
-    fi
-    # configure pkgrepo location
-    ANSIBLE_VARS="ovs_pkgrepo_proto=${REPO_PROTO} ovs_pkgrepo_host=${REPO_HOST} ovs_pkgrepo_path=${REPO_PATH} ${ANSIBLE_VARS}"
-
-    # configure pkgrepo distribution
-    ANSIBLE_VARS="ovs_pkgrepo_dist=${REPO_DIST} ovs_pkgrepo_component=${REPO_COMPONENT} ${ANSIBLE_VARS}"
-
-    # configure pkgrepo gpg key
-    ANSIBLE_VARS="ovs_pkgrepo_key=${REPO_KEY} ${ANSIBLE_VARS}"
-    if [ -z "${REPO_KEY_FINGERPRINT}" ]; then
-        ANSIBLE_VARS="ovs_pkgrepo_key_fingerprint=${REPO_KEY_FINGERPRINT} ${ANSIBLE_VARS}"
-    fi
-fi
-
 if [[ "${REPO_PROTO}" == 'https' ]]; then
     echo "Ensure HTTPS apt transport method is installed"
     apt install -y apt-transport-https
