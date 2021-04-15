@@ -144,7 +144,7 @@ if [ "$MAGMA_INSTALLED" != "$SUCCESS_MESSAGE" ]; then
   git checkout "$MAGMA_VERSION"
 
   echo "Generating localhost hostfile for Ansible"
-  echo "[ovs_build]
+  echo "[magma_deploy]
   127.0.0.1 ansible_connection=local
   [ovs_deploy]
   127.0.0.1 ansible_connection=local" > $DEPLOY_PATH/agw_hosts
