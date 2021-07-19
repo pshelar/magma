@@ -161,15 +161,8 @@ def disable_stateless_agw():
 
 def ovs_reset_bridges():
     subprocess.call(
-        "ovs-vsctl --all destroy Flow_Sample_Collector_Set".split(),
+        "magma-bridge-reset.sh".split(),
     )
-    subprocess.call("ifdown uplink_br0".split())
-    subprocess.call("ifdown gtp_br0".split())
-    subprocess.call("ifdown patch-up".split())
-    subprocess.call("service openvswitch-switch restart".split())
-    subprocess.call("ifup uplink_br0".split())
-    subprocess.call("ifup gtp_br0".split())
-    subprocess.call("ifup patch-up".split())
 
 
 def sctpd_pre_start():
